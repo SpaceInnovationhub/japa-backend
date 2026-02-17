@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from . import models, database
-
+from .database import engine, SessionLocal  # The dot means "look in this same folder"
+from . import models
 app = FastAPI()
 
 # Create tables in Neon
