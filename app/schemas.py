@@ -48,3 +48,17 @@ class EvacuationRequestCreate(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+    class TicketCreate(BaseModel):
+        embassy_country: str
+        subject: str
+        description: str
+
+    class TicketStatusUpdate(BaseModel):
+        status: str
+
+        class AnnouncementCreate(BaseModel):
+            embassy_country: str
+            title: str
+            content: str
+            category: str   # Info, Warning, Critical

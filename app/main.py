@@ -4,7 +4,14 @@ from . import models, database
 from .database import engine, SessionLocal  # The dot means "look in this same folder"
 from . import models
 app = FastAPI()
+from routers import incidents
+app.include_router(incidents.router)
 
+FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+  if (message.notification != null) {
+    print("Notification: ${message.notification!.title}");
+  }
+}
 # Create tables in Neon
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -21,3 +28,4 @@ def signup(fullname: str, email: str, password: str, db: Session = Depends(datab
     db.commit()
     db.refresh(new_user)
     return {"message": "User created successfully", "user_id": new_user.id}
+    backend_api/firebase_key.json

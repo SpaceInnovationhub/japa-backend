@@ -4,6 +4,17 @@ from app.database import get_db
 from app.models import User
 from app.schemas import UserCreate, UserLogin, UserResponse, Token
 from app.auth import hash_password, verify_password, create_access_token
+from pydantic import BaseModel
+
+class FcmUpdate(BaseModel):
+    fcm_token: str
+
+@router.put("/fcm/{user_id}")
+def update_fcm(user_id: int, data: FcmUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    user.fcm_token = data.fcm_token
+    db.commit()
+    return {"message": "FCM token updated"}
 
 router = APIRouter(prefix="/user", tags=["users"])
 

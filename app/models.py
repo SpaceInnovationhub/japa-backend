@@ -1,6 +1,17 @@
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from .database import Base
+from sqlalchemy import DateTime
+    id = Column(Integer, primary_key=True)
+    embassy_country = Column(String)
+    title = Column(String)
+from datetime import datetime
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+    content = Column(Text)
+    category = Column(String)   # Info, Warning, Critical
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = "users"
@@ -44,3 +55,5 @@ class EvacuationRequest(Base):
 
     # Relationship
     user = relationship("User", back_populates="evacuation_requests")
+
+    fcm_token = Column(String, nullable=True)
