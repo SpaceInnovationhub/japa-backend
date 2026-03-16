@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 from . import models, database
 from .database import engine, SessionLocal
 from routers import incidents
+from routers import auth, users,
 
 app = FastAPI()
 
 # Include your routers
 app.include_router(incidents.router)
+app.include_router(map.router, prefix="/api", tags=["map"])
 
 # Create tables in Neon/Postgres
 models.Base.metadata.create_all(bind=database.engine)
