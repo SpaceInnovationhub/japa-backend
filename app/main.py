@@ -4,12 +4,16 @@ from . import models, database
 from .database import engine, SessionLocal
 from routers import incidents
 from routers import auth, users,
+from .routers import announcements, tickets, incidents
 
 app = FastAPI()
 
 # Include your routers
 app.include_router(incidents.router)
 app.include_router(map.router, prefix="/api", tags=["map"])
+app.include_router(announcements.router)
+app.include_router(tickets.router)
+app.include_router(incidents.router)
 
 # Create tables in Neon/Postgres
 models.Base.metadata.create_all(bind=database.engine)

@@ -37,10 +37,23 @@ class TicketResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class AnnouncementCreate(BaseModel):
-    embassy_country: str
+class AnnouncementBase(BaseModel):
     title: str
     content: str
+    category: str = "Info"
+
+class AnnouncementCreate(AnnouncementBase):
+    pass
+
+class Announcement(AnnouncementBase):
+    id: int
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# Similar for Ticket and Incident schemas
 
 class EvacuationRequestCreate(BaseModel):
     country: str
@@ -56,6 +69,7 @@ class Token(BaseModel):
 
     class TicketStatusUpdate(BaseModel):
         status: str
+
 
         class AnnouncementCreate(BaseModel):
             embassy_country: str
