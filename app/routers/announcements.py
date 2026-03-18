@@ -21,8 +21,9 @@ def create_announcement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    # Fix for Pydantic v2 - use .model_dump() instead of .dict()
     db_announcement = models.Announcement(
-        **announcement.dict(),
+        **announcement.model_dump(),
         created_by=current_user.id
     )
     db.add(db_announcement)
