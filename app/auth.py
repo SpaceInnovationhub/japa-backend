@@ -3,6 +3,10 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+from . import models, database
 
 load_dotenv()
 
@@ -11,6 +15,9 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# OAuth2 scheme for token extraction
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -31,3 +38,31 @@ def verify_token(token: str):
         return payload
     except JWTError:
         return None
+
+# ADD THIS MISSING FUNCTION
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
+    """
+    Dependency to get the current authenticated user from the token
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    # Verify the token
+    payload = verify_token(token)
+    if payload is None:
+        raise credentials_exception
+
+    # Extract user ID from token
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
+
+    # Get user from database
+    user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+    if user is None:
+        raise credentials_exception
+
+    return user
