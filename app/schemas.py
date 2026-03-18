@@ -1,3 +1,4 @@
+from datetime import datetime  # ADD THIS IMPORT
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
@@ -48,12 +49,10 @@ class AnnouncementCreate(AnnouncementBase):
 class Announcement(AnnouncementBase):
     id: int
     created_by: int
-    created_at: datetime
+    created_at: datetime  # Now datetime is defined
 
     class Config:
-        orm_mode = True
-
-# Similar for Ticket and Incident schemas
+        from_attributes = True  # Changed from orm_mode to from_attributes (Pydantic v2)
 
 class EvacuationRequestCreate(BaseModel):
     country: str
@@ -62,17 +61,17 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-    class TicketCreate(BaseModel):
-        embassy_country: str
-        subject: str
-        description: str
+# Fixed indentation - these were incorrectly nested
+class TicketCreateWithEmbassy(BaseModel):
+    embassy_country: str
+    subject: str
+    description: str
 
-    class TicketStatusUpdate(BaseModel):
-        status: str
+class TicketStatusUpdate(BaseModel):
+    status: str
 
-
-        class AnnouncementCreate(BaseModel):
-            embassy_country: str
-            title: str
-            content: str
-            category: str   # Info, Warning, Critical
+class AnnouncementCreateWithEmbassy(BaseModel):
+    embassy_country: str
+    title: str
+    content: str
+    category: str  # Info, Warning, Critical
