@@ -1,45 +1,43 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database import SessionLocal
-from models import Announcement
-from schemas import AnnouncementCreate
-from services.notification_service import send_push_to_country
+from app.database import get_db, SessionLocal  # Fixed import
+from app.models import Announcement
+from app.schemas import AnnouncementCreate, Announcement
+from app.services.notification_service import send_push_to_country
+from typing import List
 
-@router.post("/announcement")
+# Define router
+router = APIRouter(prefix="/embassy", tags=["embassy"])
+
+@router.post("/announcement", response_model=dict)
 def create_announcement(data: AnnouncementCreate, db: Session = Depends(get_db)):
-    new_announcement = Announcement(**data.dict())
+    # Create new announcement
+    new_announcement = Announcement(
+        embassy_country=data.embassy_country,
+        title=data.title,
+        content=data.content,
+        category=data.category
+    )
     db.add(new_announcement)
     db.commit()
+    db.refresh(new_announcement)
 
-    # 🔔 Send push notification
-    send_push_to_country(
-        country=data.embassy_country,
-        title=data.title,
-        body=data.content[:100]  # short preview
-    )
+    # Send push notification
+    try:
+        send_push_to_country(
+            country=data.embassy_country,
+            title=data.title,
+            body=data.content[:100]
+        )
+    except Exception as e:
+        print(f"Notification failed: {e}")
 
     return {"message": "Announcement published and notifications sent"}
-router = APIRouter(prefix="/embassy")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Embassy creates announcement or warning
-@router.post("/announcement")
-def create_announcement(data: AnnouncementCreate, db: Session = Depends(get_db)):
-    new_announcement = Announcement(**data.dict())
-    db.add(new_announcement)
-    db.commit()
-    return {"message": "Announcement published"}
-
-# Mobile app fetches announcements by country
-@router.get("/announcements/{country}")
+@router.get("/announcements/{country}", response_model=List[Announcement])
 def get_announcements(country: str, db: Session = Depends(get_db)):
-    return db.query(Announcement)\
-             .filter(Announcement.embassy_country == country)\
-             .order_by(Announcement.created_at.desc())\
-             .all()
+    announcements = db.query(Announcement)\
+        .filter(Announcement.embassy_country == country)\
+        .order_by(Announcement.created_at.desc())\
+        .all()
+    return announcements
