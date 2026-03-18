@@ -6,17 +6,21 @@ from app.schemas import UserCreate, UserLogin, UserResponse, Token
 from app.auth import hash_password, verify_password, create_access_token
 from pydantic import BaseModel
 
+# DEFINE ROUTER FIRST - BEFORE ANY ENDPOINTS THAT USE IT
+router = APIRouter(prefix="/user", tags=["users"])
+
 class FcmUpdate(BaseModel):
     fcm_token: str
 
+# NOW use the router for endpoints
 @router.put("/fcm/{user_id}")
 def update_fcm(user_id: int, data: FcmUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
+    if not user:  # Add error handling
+        raise HTTPException(status_code=404, detail="User not found")
     user.fcm_token = data.fcm_token
     db.commit()
     return {"message": "FCM token updated"}
-
-router = APIRouter(prefix="/user", tags=["users"])
 
 @router.post("/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
