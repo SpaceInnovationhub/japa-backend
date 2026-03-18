@@ -1,9 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from . import models, database
-from .database import engine, SessionLocal
-from routers import incidents, auth, users
-from .routers import announcements, tickets
+from app import models, database
+from app.database import engine, SessionLocal
+from app.routers import incidents, auth, users, kyc, announcements, tickets
 
 app = FastAPI()
 
@@ -13,6 +12,7 @@ app.include_router(announcements.router)
 app.include_router(tickets.router)
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(kyc.router)
 
 # Create tables in Neon/Postgres
 models.Base.metadata.create_all(bind=database.engine)
