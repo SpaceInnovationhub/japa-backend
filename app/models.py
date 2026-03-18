@@ -2,13 +2,18 @@ from sqlalchemy import Column, Integer, String, Date, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from .database import Base
 from sqlalchemy import DateTime
-    id = Column(Integer, primary_key=True)
-    embassy_country = Column(String)
-    title = Column(String)
 from datetime import datetime
+
+# REMOVE these lines - they're not inside any class and causing the error
+#     id = Column(Integer, primary_key=True)
+#     embassy_country = Column(String)
+#     title = Column(String)
 
 class Announcement(Base):
     __tablename__ = "announcements"
+    id = Column(Integer, primary_key=True, index=True)
+    embassy_country = Column(String(50))
+    title = Column(String(200))
     content = Column(Text)
     category = Column(String)   # Info, Warning, Critical
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -23,6 +28,7 @@ class User(Base):
     phone = Column(String(20))
     password = Column(String(255))
     country = Column(String(50))
+    fcm_token = Column(String, nullable=True)
 
     # Relationships
     tickets = relationship("SupportTicket", back_populates="user")
@@ -39,13 +45,6 @@ class SupportTicket(Base):
     # Relationship
     user = relationship("User", back_populates="tickets")
 
-class Announcement(Base):
-    __tablename__ = "announcements"
-    id = Column(Integer, primary_key=True, index=True)
-    embassy_country = Column(String(50))
-    title = Column(String(200))
-    content = Column(Text)
-
 class EvacuationRequest(Base):
     __tablename__ = "evacuation_requests"
     id = Column(Integer, primary_key=True, index=True)
@@ -55,5 +54,3 @@ class EvacuationRequest(Base):
 
     # Relationship
     user = relationship("User", back_populates="evacuation_requests")
-
-    fcm_token = Column(String, nullable=True)
