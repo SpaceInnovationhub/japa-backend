@@ -3,17 +3,18 @@ from sqlalchemy.orm import Session
 from . import models, database
 from .database import engine, SessionLocal
 from routers import incidents
-from routers import auth, users,
-from .routers import announcements, tickets, incidents
+from routers import auth, users  # Removed trailing comma
+from .routers import announcements, tickets
 
 app = FastAPI()
 
 # Include your routers
 app.include_router(incidents.router)
-app.include_router(map.router, prefix="/api", tags=["map"])
+# app.include_router(map.router, prefix="/api", tags=["map"])  # Commented out since 'map' isn't imported
 app.include_router(announcements.router)
 app.include_router(tickets.router)
-app.include_router(incidents.router)
+app.include_router(auth.router)  # Added auth router
+app.include_router(users.router)  # Added users router
 
 # Create tables in Neon/Postgres
 models.Base.metadata.create_all(bind=database.engine)
