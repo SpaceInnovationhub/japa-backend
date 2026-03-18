@@ -4,11 +4,6 @@ from .database import Base
 from sqlalchemy import DateTime
 from datetime import datetime
 
-# REMOVE these lines - they're not inside any class and causing the error
-#     id = Column(Integer, primary_key=True)
-#     embassy_country = Column(String)
-#     title = Column(String)
-
 class Announcement(Base):
     __tablename__ = "announcements"
     id = Column(Integer, primary_key=True, index=True)
@@ -54,3 +49,19 @@ class EvacuationRequest(Base):
 
     # Relationship
     user = relationship("User", back_populates="evacuation_requests")
+
+# ADD THIS NEW MODEL
+class IncidentReport(Base):
+    __tablename__ = "incident_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    embassy_country = Column(String(100))
+    description = Column(Text)
+    media_path = Column(String(500))
+    status = Column(String(50), default="Pending")  # Pending, Reviewed, Resolved
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    user = relationship("User", backref="incident_reports")
