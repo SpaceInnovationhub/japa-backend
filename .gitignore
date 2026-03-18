@@ -21,6 +21,11 @@ wheels/
 *.egg
 MANIFEST
 
+#Firebase Credentials 
+firebase_key.json
+japa-app-6e071-firebase-adminsdk-fbsvc-2c2f317de5.json
+*.json
+
 # Environment variables
 .env
 .env.local
