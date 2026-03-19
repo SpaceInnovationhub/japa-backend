@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app import models, database
 from app.database import engine, SessionLocal
 from app.routers import incidents, auth, users, kyc, announcements, tickets
+import os
 
 app = FastAPI()
 
@@ -28,5 +29,9 @@ def signup(fullname: str, email: str, password: str, db: Session = Depends(datab
     db.commit()
     db.refresh(new_user)
     return {"message": "User created successfully", "user_id": new_user.id}
-    db.refresh(new_user)
-    return {"message": "User created successfully", "user_id": new_user.id}
+
+# Add this at the bottom for Render deployment
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
