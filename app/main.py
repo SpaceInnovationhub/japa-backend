@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware  # Add this import
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel  # Add this import
 from sqlalchemy.orm import Session
 from app import models, database
 from app.database import engine, SessionLocal
@@ -8,16 +9,15 @@ import os
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# Add CORS middleware - ADD THIS BLOCK RIGHT AFTER CREATING THE APP
-# In your backend main.py
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://japa-backend.onrender.com",
-        "http://localhost:61289",  # Add your local Flutter app URL
+        "http://localhost:61289",
         "http://localhost:3000",
         "http://localhost:8000",
-        "*"  # For development only
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -34,6 +34,16 @@ app.include_router(kyc.router)
 
 # Create tables
 models.Base.metadata.create_all(bind=database.engine)
+
+# Request model for signup
+class SignupRequest(BaseModel):
+    fullname: str
+    email: str
+    password: str
+    passport_number: str = None
+    nin: str = None
+    phone: str = None
+    country: str = None
 
 @app.get("/")
 def read_root():
@@ -56,21 +66,40 @@ def read_root():
 def health_check():
     return {"status": "healthy", "database": "connected"}
 
+# Updated signup endpoint that accepts JSON body
 @app.post("/signup")
-def signup(fullname: str, email: str, password: str, db: Session = Depends(database.get_db)):
-    db_user = db.query(models.User).filter(models.User.email == email).first()
+def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
+    # Check if user exists
+    db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    new_user = models.User(fullname=fullname, email=email, password=password)
+    # Create new user with all fields
+    new_user = models.User(
+        fullname=request.fullname,
+        email=request.email,
+        password=request.password,  # Make sure to hash this in production!
+        passport_number=request.passport_number,
+        nin=request.nin,
+        phone=request.phone,
+        country=request.country
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return {"message": "User created successfully", "user_id": new_user.id}
+
+    return {
+        "message": "User created successfully",
+        "user_id": new_user.id,
+        "user": {
+            "id": new_user.id,
+            "fullname": new_user.fullname,
+            "email": new_user.email
+        }
+    }
 
 # Add this at the bottom for Render deployment
 if __name__ == "__main__":
     import uvicorn
-    import os
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
