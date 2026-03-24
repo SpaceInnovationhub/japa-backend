@@ -9,19 +9,19 @@ import os
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
 # Add CORS middleware - ADD THIS BLOCK RIGHT AFTER CREATING THE APP
+# In your backend main.py
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://japa-mobile.onrender.com",  # Your Flutter mobile app
-        "https://japa-backend.onrender.com",  # Your backend itself
-        "http://localhost:3000",  # Local React development
-        "http://localhost:8000",  # Local backend development
-        "http://127.0.0.1:8000",  # Alternative localhost
-        "*"  # For development - REMOVE IN PRODUCTION
+        "https://japa-backend.onrender.com",
+        "http://localhost:61289",  # Add your local Flutter app URL
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "*"  # For development only
     ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include your routers
