@@ -7,6 +7,15 @@ from app.database import engine, SessionLocal
 from app.routers import incidents, auth, users, kyc, announcements, tickets
 import os
 
+class SignupRequest(BaseModel):
+    fullname: str
+    email: str
+    password: str
+    passport_number: str = None
+    nin: str = None
+    phone: str = None
+    country: str = None
+
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
 # Add CORS middleware
@@ -66,9 +75,9 @@ def read_root():
 def health_check():
     return {"status": "healthy", "database": "connected"}
 
-# Updated signup endpoint that accepts JSON body
+# Then replace your existing signup function with this
 @app.post("/signup")
-def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
+async def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
     # Check if user exists
     db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if db_user:
@@ -78,7 +87,7 @@ def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password,  # Make sure to hash this in production!
+        password=request.password,
         passport_number=request.passport_number,
         nin=request.nin,
         phone=request.phone,
