@@ -71,5 +71,6 @@ def signup(fullname: str, email: str, password: str, db: Session = Depends(datab
 # Add this at the bottom for Render deployment
 if __name__ == "__main__":
     import uvicorn
+    import os
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
