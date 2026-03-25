@@ -1,3 +1,12 @@
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel  # Add this import
+from sqlalchemy.orm import Session
+from app import models, database
+from app.database import engine, SessionLocal
+from app.routers import incidents, auth, users, kyc, announcements, tickets
+import os
+
 from pydantic import BaseModel
 
 # Add this class right after your imports
