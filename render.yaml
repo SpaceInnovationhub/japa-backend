@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: japa-app-backend
+    env: node # or python, go, etc.
+    plan: free
+    buildCommand: npm install # or pip install -r requirements.txt
+    startCommand: npm start # This is where your Start Command lives!
