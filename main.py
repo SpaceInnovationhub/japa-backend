@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+ from fastapi import FastAPI, Depends, HTTPException
  from fastapi.middleware.cors import CORSMiddleware
  from pydantic import BaseModel
  from sqlalchemy.orm import Session
@@ -9,25 +9,25 @@ from fastapi import FastAPI, Depends, HTTPException
  from app.database import engine
  from app.routers import incidents, auth, users, kyc, announcements, tickets
 
- # ========== CREATE APP ==========
+ # Create app
  app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
- # ========== CORS MIDDLEWARE - FIXED ==========
+ # CORS middleware
  app.add_middleware(
      CORSMiddleware,
      allow_origins=[
-         "http://localhost:49239",  # Your current Flutter app port
+         "http://localhost:49239",
          "http://localhost:3000",
          "http://localhost:8000",
          "https://japa-backend.onrender.com",
-         "*"  # Allow all for testing
+         "*"
      ],
      allow_credentials=True,
-     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly allow POST
+     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["*"],
  )
 
- # ========== INCLUDE ROUTERS ==========
+ # Include routers
  app.include_router(incidents.router)
  app.include_router(announcements.router)
  app.include_router(tickets.router)
@@ -35,10 +35,10 @@ from fastapi import FastAPI, Depends, HTTPException
  app.include_router(users.router)
  app.include_router(kyc.router)
 
- # ========== CREATE TABLES ==========
+ # Create tables
  models.Base.metadata.create_all(bind=database.engine)
 
- # ========== REQUEST MODEL ==========
+ # Request model
  class SignupRequest(BaseModel):
      fullname: str
      email: str
@@ -48,7 +48,7 @@ from fastapi import FastAPI, Depends, HTTPException
      phone: str = None
      country: str = None
 
- # ========== ROOT ENDPOINTS ==========
+ # Root endpoint
  @app.get("/")
  def read_root():
      return {
@@ -57,16 +57,17 @@ from fastapi import FastAPI, Depends, HTTPException
          "version": "1.0.0"
      }
 
+ # Health check
  @app.get("/health")
  def health_check():
      return {"status": "healthy"}
 
+ # OPTIONS handler for signup
  @app.options("/signup")
  async def signup_options():
-     """Handle OPTIONS preflight request"""
      return {"message": "OK"}
 
- # ========== SIGNUP ENDPOINT - FIXED ==========
+ # Signup endpoint
  @app.post("/signup")
  async def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
      # Check if user exists
@@ -98,7 +99,7 @@ from fastapi import FastAPI, Depends, HTTPException
          }
      }
 
- # ========== RUN SERVER ==========
+ # Run server
  if __name__ == "__main__":
      import uvicorn
      port = int(os.environ.get("PORT", 8000))
