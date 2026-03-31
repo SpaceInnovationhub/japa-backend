@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException
+﻿from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -24,6 +24,7 @@ class LoginRequest(BaseModel):
 
 # Simple in-memory storage
 users_db = {}
+tokens_db = {}
 
 @app.get("/")
 def root():
@@ -38,17 +39,18 @@ def signup(request: SignupRequest):
     if request.email in users_db:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    user_id = len(users_db) + 1
     users_db[request.email] = {
+        "id": user_id,
         "fullname": request.fullname,
         "email": request.email,
-        "password": request.password,
-        "id": len(users_db) + 1
+        "password": request.password
     }
     
     return {
         "message": "User created successfully",
         "user": {
-            "id": users_db[request.email]["id"],
+            "id": user_id,
             "fullname": request.fullname,
             "email": request.email
         }
@@ -62,12 +64,34 @@ def login(request: LoginRequest):
     if users_db[request.email]["password"] != request.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    token = f"token_{users_db[request.email]['id']}"
+    tokens_db[token] = users_db[request.email]["email"]
+    
     return {
         "message": "Login successful",
-        "access_token": f"token_{users_db[request.email]['id']}",
+        "access_token": token,
         "token_type": "bearer",
         "user": users_db[request.email]
     }
+
+@app.get("/users/profile")
+def get_profile(authorization: str = Header(None)):
+    # Extract token from Authorization header
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    if token not in tokens_db:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    email = tokens_db[token]
+    user = users_db.get(email)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return user
 
 if __name__ == "__main__":
     import uvicorn
