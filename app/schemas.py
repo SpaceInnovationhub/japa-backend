@@ -1,6 +1,8 @@
-from datetime import datetime  # ADD THIS IMPORT
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
+
+# --- USER SCHEMAS ---
 
 class UserCreate(BaseModel):
     fullname: str
@@ -10,6 +12,7 @@ class UserCreate(BaseModel):
     phone: str
     password: str
     country: str
+    role: Optional[str] = "user" # Default for Flutter signups
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -21,47 +24,34 @@ class UserResponse(BaseModel):
     email: EmailStr
     phone: str
     country: str
+    role: str
+    is_active: bool
 
     class Config:
         from_attributes = True
 
-class TicketCreate(BaseModel):
-    subject: str
-    description: str
+# --- INCIDENT REPORT SCHEMAS (New - Crucial for React Dashboard) ---
 
-class TicketResponse(BaseModel):
-    id: int
-    subject: str
+class IncidentReportCreate(BaseModel):
+    embassy_country: str
     description: str
+    media_path: Optional[str] = None
+    location_coords: Optional[str] = None
+
+class IncidentReportResponse(BaseModel):
+    id: int
+    user_id: int
+    embassy_country: str
+    description: str
+    media_path: Optional[str]
     status: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
 
-class AnnouncementBase(BaseModel):
-    title: str
-    content: str
-    category: str = "Info"
+# --- TICKET SCHEMAS ---
 
-class AnnouncementCreate(AnnouncementBase):
-    pass
-
-class Announcement(AnnouncementBase):
-    id: int
-    created_by: int
-    created_at: datetime  # Now datetime is defined
-
-    class Config:
-        from_attributes = True  # Changed from orm_mode to from_attributes (Pydantic v2)
-
-class EvacuationRequestCreate(BaseModel):
-    country: str
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-# Fixed indentation - these were incorrectly nested
 class TicketCreateWithEmbassy(BaseModel):
     embassy_country: str
     subject: str
@@ -70,8 +60,39 @@ class TicketCreateWithEmbassy(BaseModel):
 class TicketStatusUpdate(BaseModel):
     status: str
 
-class AnnouncementCreateWithEmbassy(BaseModel):
+class TicketResponse(BaseModel):
+    id: int
+    user_id: int
+    embassy_country: str
+    subject: str
+    description: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# --- ANNOUNCEMENT SCHEMAS ---
+
+class AnnouncementBase(BaseModel):
     embassy_country: str
     title: str
     content: str
-    category: str  # Info, Warning, Critical
+    category: str = "Info"
+
+class AnnouncementCreate(AnnouncementBase):
+    pass
+
+class AnnouncementResponse(AnnouncementBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# --- AUTH SCHEMAS ---
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str # Send role back so React knows where to redirect
