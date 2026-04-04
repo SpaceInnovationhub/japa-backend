@@ -5,11 +5,10 @@ from sqlalchemy.orm import Session
 import os
 import sys
 
-# Add current directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Corrected imports
-from app.models import models          # ← This was the main fix
+# Correct import - import the module itself, not 'models'
+from app.models import models as model_module
 from app.database import engine, get_db
 
 # Import routers
@@ -40,7 +39,7 @@ app.include_router(tickets_router, prefix="/tickets", tags=["support"])
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
 # Create tables
-models.Base.metadata.create_all(bind=engine)
+model_module.Base.metadata.create_all(bind=engine)
 
 # Signup Model
 class SignupRequest(BaseModel):
@@ -59,11 +58,11 @@ def read_root():
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == request.email).first()
+    db_user = db.query(model_module.User).filter(model_module.User.email == request.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    new_user = models.User(
+    new_user = model_module.User(
         fullname=request.fullname,
         email=request.email,
         password=request.password,
