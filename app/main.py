@@ -1,53 +1,87 @@
-﻿from fastapi import FastAPI, HTTPException, Depends, Header
+﻿from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from .database import engine, Base, get_db
-from . import models
 import os
 
-# Create the tables in PostgreSQL automatically
+# Imports
+import models
+from database import engine, get_db
+from routers import auth, users, kyc, announcements, tickets, incidents
+
+app = FastAPI(title="JAPA Backend API", version="1.0.0")
+
+# CORS Middleware - MUST be right after creating the app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
+app.include_router(announcements.router, prefix="/announcements", tags=["announcements"])
+app.include_router(tickets.router, prefix="/tickets", tags=["support"])
+app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
+
+# Create tables on startup (development only)
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+# Request model for signup
+class SignupRequest(BaseModel):
+    fullname: str
+    email: str
+    password: str
+    passport_number: str | None = None
+    nin: str | None = None
+    phone: str | None = None
+    country: str | None = None
 
-# ... (Keep your CORSMiddleware here) ...
 
-# --- CITIZEN ROUTES (FLUTTER) ---
+@app.get("/")
+def read_root():
+    return {"message": "JAPA Backend API is running ✅"}
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 
 @app.post("/signup")
-def signup(request: models.UserCreate, db: Session = Depends(get_db)):
-    # Check if user exists in REAL database
+def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    # Check if email already exists
     db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Create new user (TODO: Hash the password!)
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password, # Note: Use Bcrypt here later!
-        country=request.country,
-        role="user"
+        password=request.password,
+        passport_number=request.passport_number,
+        nin=request.nin,
+        phone=request.phone,
+        country=request.country
     )
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return {"message": "User created in DB", "user_id": new_user.id}
 
-# --- EMBASSY ROUTES (REACT DASHBOARD) ---
+    return {
+        "message": "User created successfully",
+        "user_id": new_user.id
+    }
 
-@app.get("/incidents")
-def get_all_incidents(db: Session = Depends(get_db)):
-    # This is what your React Dashboard calls!
-    return db.query(models.IncidentReport).all()
 
-@app.get("/tickets")
-def get_all_tickets(db: Session = Depends(get_db)):
-    return db.query(models.SupportTicket).all()
-
-@app.put("/incidents/{incident_id}")
-def update_incident_status(incident_id: int, status: str, db: Session = Depends(get_db)):
-    incident = db.query(models.IncidentReport).filter(models.IncidentReport.id == incident_id).first()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Not found")
-    incident.status = status
-    db.commit()
-    return {"message": "Status updated"}
+# For running locally
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
