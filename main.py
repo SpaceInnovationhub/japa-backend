@@ -3,15 +3,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
+import sys
 
-# Imports
-import models
-from database import engine, get_db
-from routers import auth, users, kyc, announcements, tickets, incidents
+# Important: Add current directory to path
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+# Correct imports from the 'app' folder
+from app.models.models import models
+from app.database import engine, get_db
+
+# Import routers one by one
+from app.routers.auth import router as auth_router
+from app.routers.users import router as users_router
+from app.routers.kyc import router as kyc_router
+from app.routers.announcements import router as announcements_router
+from app.routers.tickets import router as tickets_router
+from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# CORS Middleware
+# CORS - This is needed for Flutter to connect
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,15 +31,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
-app.include_router(announcements.router, prefix="/announcements", tags=["announcements"])
-app.include_router(tickets.router, prefix="/tickets", tags=["support"])
-app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
+# Include all routers
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(users_router, prefix="/users", tags=["users"])
+app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
+app.include_router(announcements_router, prefix="/announcements", tags=["announcements"])
+app.include_router(tickets_router, prefix="/tickets", tags=["support"])
+app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
-# Create tables (development only)
+# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
 # Signup Request Model
@@ -44,13 +55,7 @@ class SignupRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "JAPA Backend API is running ✅"}
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
+    return {"message": "✅ JAPA Backend API is running"}
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
@@ -78,7 +83,6 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     }
 
 
-# Run locally
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
