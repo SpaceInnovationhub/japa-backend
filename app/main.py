@@ -3,15 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
+import sys
 
-# Imports
-import models
-from database import engine, get_db
-from routers import auth, users, kyc, announcements, tickets, incidents
+# Add the current directory to Python path so it can find the 'app' package
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+# Import from the 'app' package
+from app.models import models
+from app.database import engine, get_db
+from app.routers import auth, users, kyc, announcements, tickets, incidents
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# CORS Middleware - MUST be right after creating the app
+# ====================== CORS ======================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# ====================== ROUTERS ======================
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
@@ -28,10 +32,10 @@ app.include_router(announcements.router, prefix="/announcements", tags=["announc
 app.include_router(tickets.router, prefix="/tickets", tags=["support"])
 app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
 
-# Create tables on startup (development only)
+# Create tables (development only)
 models.Base.metadata.create_all(bind=engine)
 
-# Request model for signup
+# ====================== SIGNUP MODEL ======================
 class SignupRequest(BaseModel):
     fullname: str
     email: str
@@ -54,16 +58,14 @@ def health_check():
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    # Check if email already exists
     db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create new user (TODO: Hash the password!)
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password,
+        password=request.password,           # TODO: Hash this in production!
         passport_number=request.passport_number,
         nin=request.nin,
         phone=request.phone,
@@ -80,7 +82,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     }
 
 
-# For running locally
+# For local running
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
