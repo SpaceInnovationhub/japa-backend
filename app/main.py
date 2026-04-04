@@ -5,17 +5,24 @@ from sqlalchemy.orm import Session
 import os
 import sys
 
-# Add the current directory to Python path so it can find the 'app' package
+# Fix import path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Import from the 'app' package
-from app.models import models
+# Imports from app package
+from app.models.models import models
 from app.database import engine, get_db
-from app.routers import auth, users, kyc, announcements, tickets, incidents
+
+# Import routers individually to avoid issues
+from app.routers.auth import router as auth_router
+from app.routers.users import router as users_router
+from app.routers.kyc import router as kyc_router
+from app.routers.announcements import router as announcements_router
+from app.routers.tickets import router as tickets_router
+from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# ====================== CORS ======================
+# CORS - Important for Flutter
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,18 +31,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ====================== ROUTERS ======================
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
-app.include_router(announcements.router, prefix="/announcements", tags=["announcements"])
-app.include_router(tickets.router, prefix="/tickets", tags=["support"])
-app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
+# Routers
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(users_router, prefix="/users", tags=["users"])
+app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
+app.include_router(announcements_router, prefix="/announcements", tags=["announcements"])
+app.include_router(tickets_router, prefix="/tickets", tags=["support"])
+app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
-# Create tables (development only)
+# Create tables on startup
 models.Base.metadata.create_all(bind=engine)
 
-# ====================== SIGNUP MODEL ======================
+# Signup Model
 class SignupRequest(BaseModel):
     fullname: str
     email: str
@@ -48,24 +55,19 @@ class SignupRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "JAPA Backend API is running ✅"}
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
+    return {"message": "✅ JAPA Backend is running"}
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == request.email).first()
-    if db_user:
+    # Check if user exists
+    existing_user = db.query(models.User).filter(models.User.email == request.email).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password,           # TODO: Hash this in production!
+        password=request.password,   # TODO: Hash password later
         passport_number=request.passport_number,
         nin=request.nin,
         phone=request.phone,
@@ -77,12 +79,11 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return {
-        "message": "User created successfully",
+        "message": "User registered successfully",
         "user_id": new_user.id
     }
 
 
-# For local running
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
