@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 import os
 import sys
 
-# Add project root to Python path
+# Add root to path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Correct imports
-from app.models import models as model_module   # This imports the entire models.py module
+# Correct import - import the entire module
+import app.models.models as model_module
 from app.database import engine, get_db
 
 # Import routers
@@ -22,7 +22,7 @@ from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# CORS Middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
+# Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
@@ -39,10 +39,10 @@ app.include_router(announcements_router, prefix="/announcements", tags=["announc
 app.include_router(tickets_router, prefix="/tickets", tags=["support"])
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
-# Create database tables
+# Create tables
 model_module.Base.metadata.create_all(bind=engine)
 
-# Signup Request Model
+# Signup Model
 class SignupRequest(BaseModel):
     fullname: str
     email: str
