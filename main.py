@@ -1,106 +1,85 @@
- from fastapi import FastAPI, Depends, HTTPException
- from fastapi.middleware.cors import CORSMiddleware
- from pydantic import BaseModel
- from sqlalchemy.orm import Session
- import os
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+import os
 
- # Local imports
- from app import models, database
- from app.database import engine
- from app.routers import incidents, auth, users, kyc, announcements, tickets
+# Imports
+import models
+from database import engine, get_db
+from routers import auth, users, kyc, announcements, tickets, incidents
 
- # Create app
- app = FastAPI(title="JAPA Backend API", version="1.0.0")
+app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
- # CORS middleware
- app.add_middleware(
-     CORSMiddleware,
-     allow_origins=[
-         "http://localhost:49239",
-         "http://localhost:3000",
-         "http://localhost:8000",
-         "https://japa-backend.onrender.com",
-         "*"
-     ],
-     allow_credentials=True,
-     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["*"],
- )
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
- # Include routers
- app.include_router(incidents.router)
- app.include_router(announcements.router)
- app.include_router(tickets.router)
- app.include_router(auth.router)
- app.include_router(users.router)
- app.include_router(kyc.router)
+# Include routers
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(kyc.router, prefix="/kyc", tags=["kyc"])
+app.include_router(announcements.router, prefix="/announcements", tags=["announcements"])
+app.include_router(tickets.router, prefix="/tickets", tags=["support"])
+app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
 
- # Create tables
- models.Base.metadata.create_all(bind=database.engine)
+# Create tables (development only)
+models.Base.metadata.create_all(bind=engine)
 
- # Request model
- class SignupRequest(BaseModel):
-     fullname: str
-     email: str
-     password: str
-     passport_number: str = None
-     nin: str = None
-     phone: str = None
-     country: str = None
+# Signup Request Model
+class SignupRequest(BaseModel):
+    fullname: str
+    email: str
+    password: str
+    passport_number: str | None = None
+    nin: str | None = None
+    phone: str | None = None
+    country: str | None = None
 
- # Root endpoint
- @app.get("/")
- def read_root():
-     return {
-         "message": "JAPA Backend API is running!",
-         "status": "active",
-         "version": "1.0.0"
-     }
 
- # Health check
- @app.get("/health")
- def health_check():
-     return {"status": "healthy"}
+@app.get("/")
+def read_root():
+    return {"message": "JAPA Backend API is running ✅"}
 
- # OPTIONS handler for signup
- @app.options("/signup")
- async def signup_options():
-     return {"message": "OK"}
 
- # Signup endpoint
- @app.post("/signup")
- async def signup(request: SignupRequest, db: Session = Depends(database.get_db)):
-     # Check if user exists
-     db_user = db.query(models.User).filter(models.User.email == request.email).first()
-     if db_user:
-         raise HTTPException(status_code=400, detail="Email already registered")
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
-     # Create new user
-     new_user = models.User(
-         fullname=request.fullname,
-         email=request.email,
-         password=request.password,
-         passport_number=request.passport_number,
-         nin=request.nin,
-         phone=request.phone,
-         country=request.country
-     )
-     db.add(new_user)
-     db.commit()
-     db.refresh(new_user)
 
-     return {
-         "message": "User created successfully",
-         "user_id": new_user.id,
-         "user": {
-             "id": new_user.id,
-             "fullname": new_user.fullname,
-             "email": new_user.email
-         }
-     }
+@app.post("/signup")
+def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == request.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
- # Run server
- if __name__ == "__main__":
-     import uvicorn
-     port = int(os.environ.get("PORT", 8000))
-     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    new_user = models.User(
+        fullname=request.fullname,
+        email=request.email,
+        password=request.password,
+        passport_number=request.passport_number,
+        nin=request.nin,
+        phone=request.phone,
+        country=request.country
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "User created successfully",
+        "user_id": new_user.id
+    }
+
+
+# Run locally
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
