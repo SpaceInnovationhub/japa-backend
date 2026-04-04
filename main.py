@@ -5,14 +5,14 @@ from sqlalchemy.orm import Session
 import os
 import sys
 
-# Important: Add current directory to path
+# Add current directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Correct imports from the 'app' folder
-from app.models.models import models
+# Corrected imports
+from app.models import models          # ← This was the main fix
 from app.database import engine, get_db
 
-# Import routers one by one
+# Import routers
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.kyc import router as kyc_router
@@ -22,7 +22,7 @@ from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
-# CORS - This is needed for Flutter to connect
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include all routers
+# Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
@@ -39,10 +39,10 @@ app.include_router(announcements_router, prefix="/announcements", tags=["announc
 app.include_router(tickets_router, prefix="/tickets", tags=["support"])
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
-# Create database tables
+# Create tables
 models.Base.metadata.create_all(bind=engine)
 
-# Signup Request Model
+# Signup Model
 class SignupRequest(BaseModel):
     fullname: str
     email: str
