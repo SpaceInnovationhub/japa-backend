@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Use environment variable for Railway, fallback to local
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://japa_user:japa_pass@localhost/japa_db")
+DATABASE_URL = os.getenv(DATABASE_URL = "postgresql://japa_user:password12345@localhost:5432/japa_db")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
