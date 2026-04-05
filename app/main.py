@@ -9,8 +9,9 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Imports from app package
-from app.models.models import models
+from models import Base, User, IncidentReport
 from app.database import engine, get_db
+from . import models, schemas
 
 # Import routers individually to avoid issues
 from app.routers.auth import router as auth_router
