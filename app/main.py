@@ -1,19 +1,18 @@
-﻿from fastapi import FastAPI, Depends, HTTPException
+﻿import os
+import sys
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import os
-import sys
 
-# Fix import path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# This ensures Python can see the 'app' directory as a package
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Imports from app package
-from models import Base, User, IncidentReport
+# Standardize on absolute imports: app.filename
 from app.database import engine, get_db
-from . import models, schemas
+from app import models, schemas
 
-# Import routers individually to avoid issues
+# Import routers using the same absolute path pattern
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.kyc import router as kyc_router
@@ -22,6 +21,7 @@ from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
+# ... rest of your code (CORS, Routers, etc.)
 
 # CORS - Important for Flutter
 app.add_middleware(
