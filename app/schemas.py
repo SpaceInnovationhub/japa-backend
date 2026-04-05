@@ -49,7 +49,7 @@ class IncidentReportResponse(BaseModel):
         from_attributes = True
 
 # --- TICKET SCHEMAS ---
-class TicketCreateWithEmbassy(BaseModel):
+class TicketCreate(BaseModel):
     embassy_country: str
     subject: str
     description: str
