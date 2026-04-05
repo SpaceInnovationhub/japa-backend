@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from .. import models, schemas
-from ..database import get_db
-from ..auth import get_current_user
+# Use absolute imports for Render/Cloud stability
+from app import models, schemas
+from app.database import get_db
+# Ensure this matches your auth file location
+from app.routers.auth import get_current_user 
 
 router = APIRouter(prefix="/api/announcements", tags=["announcements"])
 
@@ -12,8 +14,7 @@ def get_announcements(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    announcements = db.query(models.Announcement).all()
-    return announcements
+    return db.query(models.Announcement).all()
 
 @router.post("/", response_model=schemas.Announcement)
 def create_announcement(
@@ -21,10 +22,12 @@ def create_announcement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Fix for Pydantic v2 - use .model_dump() instead of .dict()
+    # Only allow Admin or Embassy roles to post announcements
+    if current_user.role not in ["admin", "embassy"]:
+        raise HTTPException(status_code=403, detail="Not authorized to post announcements")
+
     db_announcement = models.Announcement(
-        **announcement.model_dump(),
-        created_by=current_user.id
+        **announcement.model_dump()
     )
     db.add(db_announcement)
     db.commit()

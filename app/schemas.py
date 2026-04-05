@@ -3,7 +3,6 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 
 # --- USER SCHEMAS ---
-
 class UserCreate(BaseModel):
     fullname: str
     passport_number: str
@@ -12,7 +11,7 @@ class UserCreate(BaseModel):
     phone: str
     password: str
     country: str
-    role: Optional[str] = "user" # Default for Flutter signups
+    role: Optional[str] = "user"
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -30,8 +29,7 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-# --- INCIDENT REPORT SCHEMAS (New - Crucial for React Dashboard) ---
-
+# --- INCIDENT REPORT SCHEMAS ---
 class IncidentReportCreate(BaseModel):
     embassy_country: str
     description: str
@@ -51,7 +49,6 @@ class IncidentReportResponse(BaseModel):
         from_attributes = True
 
 # --- TICKET SCHEMAS ---
-
 class TicketCreateWithEmbassy(BaseModel):
     embassy_country: str
     subject: str
@@ -73,7 +70,6 @@ class TicketResponse(BaseModel):
         from_attributes = True
 
 # --- ANNOUNCEMENT SCHEMAS ---
-
 class AnnouncementBase(BaseModel):
     embassy_country: str
     title: str
@@ -83,7 +79,7 @@ class AnnouncementBase(BaseModel):
 class AnnouncementCreate(AnnouncementBase):
     pass
 
-class AnnouncementResponse(AnnouncementBase):
+class Announcement(AnnouncementBase): # Changed from AnnouncementResponse to Announcement
     id: int
     created_at: datetime
 
@@ -91,8 +87,7 @@ class AnnouncementResponse(AnnouncementBase):
         from_attributes = True
 
 # --- AUTH SCHEMAS ---
-
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    role: str # Send role back so React knows where to redirect
+    role: str
