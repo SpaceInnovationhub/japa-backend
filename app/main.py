@@ -52,6 +52,7 @@ class SignupRequest(BaseModel):
     nin: str | None = None
     phone: str | None = None
     country: str | None = None
+    fcm_token: str | None = None
 
 
 @app.get("/")
