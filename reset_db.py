@@ -1,20 +1,24 @@
 import sys
 import os
 
-# Add the current directory to the path so it finds the 'app' folder
+# Add current directory to path so it sees the 'app' folder
 sys.path.append(os.getcwd())
 
-from app.database import engine
-from app.models.models import Base
+try:
+    from app.database import engine
+    from app.models import Base  # Since you have app/models.py
+    print("✅ Imports successful!")
+except ImportError as e:
+    print(f"❌ Import Error: {e}")
+    print("Check if you are running this from the 'backend_api' folder.")
+    sys.exit(1)
 
 def reset_production_db():
     print("🚀 Connecting to Render PostgreSQL...")
     try:
-        # This clears out the old version with the missing fcm_token
         print("🗑️  Dropping old tables...")
         Base.metadata.drop_all(bind=engine)
         
-        # This builds the fresh version matching your current code
         print("🏗️  Creating fresh tables (including fcm_token)...")
         Base.metadata.create_all(bind=engine)
         
