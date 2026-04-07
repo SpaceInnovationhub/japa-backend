@@ -52,16 +52,27 @@ class SignupRequest(BaseModel):
     country: str | None = None
     fcm_token: str | None = None
 
-@app.get("/")
-def read_root():
-    return {"message": "✅ JAPA Backend is running"}
-
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    # 1. Check if user exists
-    existing_user = db.query(models.User).filter(models.User.email == request.email).first()
+    # 1. Check for duplicate Email, NIN, or Passport
+    existing_user = db.query(models.User).filter(
+        (models.User.email == request.email) | 
+        (models.User.passport_number == request.passport_number) |
+        (models.User.nin == request.nin)
+    ).first()
+
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        # Check which one specifically is the duplicate for a better error message
+        if existing_user.email == request.email:
+            detail = "Email already registered"
+        elif existing_user.passport_number == request.passport_number:
+            detail = "Passport number already registered"
+        else:
+            detail = "NIN already registered"
+            
+        raise HTTPException(status_code=400, detail=detail)
+
+    # 2. Proceed with registration if no duplicates found
 
     # 2. Map data to SQLAlchemy Model
     new_user = models.User(
