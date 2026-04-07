@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from sqlalchemy.sql import func
 from .database import Base
 
 class User(Base):
@@ -15,12 +14,11 @@ class User(Base):
     phone = Column(String(20))
     password = Column(String(255), nullable=False)
     country = Column(String(50))
-    fcm_token = Column(String, nullable=True)
+    fcm_token = Column(Text, nullable=True) # Changed to Text for flexibility
 
-    # NEW: Required for Embassy React Dashboard logic
     role = Column(String(20), default="user") # 'user', 'admin', 'embassy'
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     tickets = relationship("SupportTicket", back_populates="user", cascade="all, delete-orphan")
@@ -32,13 +30,12 @@ class SupportTicket(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    embassy_country = Column(String(50)) # Added to match your SQL schema
+    embassy_country = Column(String(50))
     subject = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
     status = Column(String(30), default="Open")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationship
     user = relationship("User", back_populates="tickets")
 
 class Announcement(Base):
@@ -48,8 +45,8 @@ class Announcement(Base):
     embassy_country = Column(String(50))
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False)
-    category = Column(String(20)) # e.g. 'visa', 'travel', 'safety'
-    created_at = Column(DateTime, default=datetime.utcnow)
+    category = Column(String(20)) 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class IncidentReport(Base):
     __tablename__ = "incident_reports"
@@ -58,13 +55,12 @@ class IncidentReport(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     embassy_country = Column(String(100))
     description = Column(Text, nullable=False)
-    media_path = Column(String(500)) # Path from your Flutter FileService
-    location_coords = Column(String(100)) # "Lat, Long" for mapping
+    media_path = Column(String(500)) 
+    location_coords = Column(String(100)) 
     status = Column(String(50), default="Pending")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationship
     user = relationship("User", back_populates="incident_reports")
 
 class EvacuationRequest(Base):
@@ -74,7 +70,6 @@ class EvacuationRequest(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     country = Column(String(50), nullable=False)
     status = Column(String(30), default="Pending")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationship
     user = relationship("User", back_populates="evacuation_requests")

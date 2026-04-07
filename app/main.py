@@ -5,14 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-# This ensures Python can see the 'app' directory as a package
+# Absolute path setup
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Standardize on absolute imports: app.filename
 from app.database import engine, get_db
-from app import models, schemas
+from app import models
 
-# Import routers using the same absolute path pattern
+# Import routers
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.kyc import router as kyc_router
@@ -21,18 +20,17 @@ from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
-# ... rest of your code (CORS, Routers, etc.)
 
-# CORS - Important for Flutter
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True, # Changed to True for better cross-origin support
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Routers
+# Include Routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
@@ -40,10 +38,10 @@ app.include_router(announcements_router, prefix="/announcements", tags=["announc
 app.include_router(tickets_router, prefix="/tickets", tags=["support"])
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
 
-# Create tables on startup
+# Create tables
 models.Base.metadata.create_all(bind=engine)
 
-# Signup Model
+# Pydantic Model for Signup
 class SignupRequest(BaseModel):
     fullname: str
     email: str
@@ -54,37 +52,41 @@ class SignupRequest(BaseModel):
     country: str | None = None
     fcm_token: str | None = None
 
-
 @app.get("/")
 def read_root():
     return {"message": "✅ JAPA Backend is running"}
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    # Check if user exists
+    # 1. Check if user exists
     existing_user = db.query(models.User).filter(models.User.email == request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # 2. Map data to SQLAlchemy Model
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password,   # TODO: Hash password later
+        password=request.password,   # Note: Implement hashing later
         passport_number=request.passport_number,
         nin=request.nin,
         phone=request.phone,
-        country=request.country
+        country=request.country,
+        fcm_token=request.fcm_token  # <--- CRITICAL FIX: Mapping the token
     )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {
-        "message": "User registered successfully",
-        "user_id": new_user.id
-    }
-
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {
+            "message": "User registered successfully",
+            "user_id": new_user.id
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"❌ DATABASE ERROR: {e}")
+        raise HTTPException(status_code=500, detail="Database insertion failed")
 
 if __name__ == "__main__":
     import uvicorn
