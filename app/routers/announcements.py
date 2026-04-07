@@ -9,14 +9,15 @@ from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/announcements", tags=["announcements"])
 
-@router.get("/", response_model=List[schemas.Announcement])
+@router.get("/", response_model=List[schemas.AnnouncementResponse])
 def get_announcements(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     return db.query(models.Announcement).all()
 
-@router.post("/", response_model=schemas.Announcement)
+# FIXED: Changed from schemas.Announcement to schemas.AnnouncementResponse
+@router.post("/", response_model=schemas.AnnouncementResponse)
 def create_announcement(
     announcement: schemas.AnnouncementCreate,
     db: Session = Depends(get_db),
