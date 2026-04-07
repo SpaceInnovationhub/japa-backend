@@ -2,15 +2,28 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 
+# --- AUTH & TOKEN SCHEMAS ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    # Added these so your Flutter app can store user info locally upon login
+    role: str
+    user_id: int
+
+class TokenData(BaseModel):
+    user_id: Optional[str] = None
+
 # --- USER SCHEMAS ---
 class UserCreate(BaseModel):
     fullname: str
+    email: EmailStr
+    password: str
     passport_number: str
     nin: str
-    email: EmailStr
     phone: str
-    password: str
     country: str
+    # CRITICAL FIX: Added fcm_token here so register() doesn't throw a 422 error
+    fcm_token: Optional[str] = None 
     role: Optional[str] = "user"
 
 class UserLogin(BaseModel):
@@ -25,6 +38,8 @@ class UserResponse(BaseModel):
     country: str
     role: str
     is_active: bool
+    # Added this to match your models.py
+    created_at: Optional[datetime] = None 
 
     class Config:
         from_attributes = True
@@ -41,7 +56,7 @@ class IncidentReportResponse(BaseModel):
     user_id: int
     embassy_country: str
     description: str
-    media_path: Optional[str]
+    media_path: Optional[str] = None
     status: str
     created_at: datetime
 
@@ -79,15 +94,9 @@ class AnnouncementBase(BaseModel):
 class AnnouncementCreate(AnnouncementBase):
     pass
 
-class Announcement(AnnouncementBase): # Changed from AnnouncementResponse to Announcement
+class AnnouncementResponse(AnnouncementBase):
     id: int
     created_at: datetime
 
     class Config:
         from_attributes = True
-
-# --- AUTH SCHEMAS ---
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    role: str
