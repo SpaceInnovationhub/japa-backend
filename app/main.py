@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+
 # Absolute path setup
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -20,6 +21,7 @@ from app.routers.kyc import router as kyc_router
 from app.routers.announcements import router as announcements_router
 from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
+from app.routers import password_reset
 
 app = FastAPI(title="JAPA Backend API", version="1.0.0")
 
@@ -39,6 +41,7 @@ app.include_router(kyc_router, prefix="/kyc", tags=["kyc"])
 app.include_router(announcements_router, prefix="/announcements", tags=["announcements"])
 app.include_router(tickets_router, prefix="/tickets", tags=["support"])
 app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
+app.include_router(password_reset.router)  # Add this line
 
 # Create tables
 models.Base.metadata.create_all(bind=engine)
