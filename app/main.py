@@ -2,7 +2,7 @@
 import sys
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 # Absolute path setup
@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.database import engine, get_db
 from app import models
+# Import the hash_password function from your auth utility
+from app.auth import hash_password 
 
 # Import routers
 from app.routers.auth import router as auth_router
@@ -25,7 +27,7 @@ app = FastAPI(title="JAPA Backend API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True, # Changed to True for better cross-origin support
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,13 +46,22 @@ models.Base.metadata.create_all(bind=engine)
 # Pydantic Model for Signup
 class SignupRequest(BaseModel):
     fullname: str
-    email: str
+    email: EmailStr
     password: str
     passport_number: str | None = None
     nin: str | None = None
     phone: str | None = None
     country: str | None = None
     fcm_token: str | None = None
+
+# --- NEW: HEALTH CHECK / ROOT ROUTE ---
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "project": "JAPA Backend API",
+        "message": "Welcome to the JAPA API. Documentation is at /docs"
+    }
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
@@ -62,7 +73,6 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     ).first()
 
     if existing_user:
-        # Check which one specifically is the duplicate for a better error message
         if existing_user.email == request.email:
             detail = "Email already registered"
         elif existing_user.passport_number == request.passport_number:
@@ -72,18 +82,16 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
             
         raise HTTPException(status_code=400, detail=detail)
 
-    # 2. Proceed with registration if no duplicates found
-
-    # 2. Map data to SQLAlchemy Model
+    # 2. Map data to SQLAlchemy Model with HASHED PASSWORD
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
-        password=request.password,   # Note: Implement hashing later
+        password=hash_password(request.password), # Use hashing here!
         passport_number=request.passport_number,
         nin=request.nin,
         phone=request.phone,
         country=request.country,
-        fcm_token=request.fcm_token  # <--- CRITICAL FIX: Mapping the token
+        fcm_token=request.fcm_token
     )
 
     try:
