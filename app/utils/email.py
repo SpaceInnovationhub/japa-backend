@@ -1,4 +1,3 @@
-# app/utils/email.py
 import os
 import logging
 from typing import Optional
@@ -6,16 +5,22 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Email configuration from environment variables
-SMTP_HOST: str = os.getenv("SMTP_HOST", "")
-SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER: str = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-FROM_EMAIL: str = os.getenv("FROM_EMAIL", SMTP_USER or "noreply@yourapp.com")
-FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+SMTP_HOST: str = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT_STR: str = os.getenv("SMTP_PORT", "587").strip()
+SMTP_USER: str = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
+FROM_EMAIL: str = os.getenv("FROM_EMAIL", "").strip() or SMTP_USER or "noreply@yourapp.com"
+FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").strip()
+
+# Safely convert SMTP_PORT to int with fallback
+try:
+    SMTP_PORT: int = int(SMTP_PORT_STR)
+except ValueError:
+    logger.warning(f"Invalid SMTP_PORT value '{SMTP_PORT_STR}' in environment variables. Using default 587.")
+    SMTP_PORT: int = 587
 
 # Check if email sending is properly configured
 EMAIL_CONFIGURED = bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
-
 
 def send_password_reset_email(
     to_email: str, 
@@ -27,20 +32,18 @@ def send_password_reset_email(
     if not EMAIL_CONFIGURED:
         reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
         
-        logger.warning(f"Email not configured. Would send reset email to {to_email}")
+        logger.warning(f"Email not fully configured. Would send reset email to {to_email}")
         
-        # Helpful console output for development / Render logs
         print("\n" + "="*70)
         print("🔐 PASSWORD RESET LINK (Email sending disabled)")
-        print(f"User     : {user_name} ({to_email})")
+        print(f"User      : {user_name} ({to_email})")
         print(f"Reset Link: {reset_link}")
         print("This link expires in 24 hours.")
         print("="*70 + "\n")
         
-        return True  # Don't break the password reset flow
+        return True
 
     try:
-        # Import inside the function to avoid import errors if smtplib is missing
         import smtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
@@ -48,7 +51,6 @@ def send_password_reset_email(
         reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
         subject = "Password Reset Request - JAPA App"
 
-        # HTML version
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -89,7 +91,6 @@ def send_password_reset_email(
         </html>
         """
 
-        # Plain text version (fallback)
         text_content = f"""
         Password Reset Request - JAPA App
 
@@ -108,7 +109,6 @@ def send_password_reset_email(
         The JAPA Team
         """
 
-        # Build email
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = FROM_EMAIL
@@ -117,9 +117,8 @@ def send_password_reset_email(
         msg.attach(MIMEText(text_content, "plain"))
         msg.attach(MIMEText(html_content, "html"))
 
-        # Send email
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()                    # Start TLS encryption
+            server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
 
