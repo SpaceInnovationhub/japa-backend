@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import models, database, schemas
 from app.auth import hash_password, verify_password, create_access_token, get_current_user
-from datetime import timedelta
 import logging
 
 # Set up logging
@@ -163,23 +162,3 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
-
-# Optional: Add an endpoint for users to reset their password if hash is corrupted
-@router.post("/reset-password-request")
-def request_password_reset(email: str, db: Session = Depends(database.get_db)):
-    """Endpoint to request password reset for users with corrupted hashes"""
-    user = db.query(models.User).filter(models.User.email == email).first()
-    
-    if not user:
-        # Don't reveal if user exists or not for security
-        return {"message": "If the email exists, a reset link will be sent"}
-    
-    # Check if hash is corrupted
-    if user.password and (len(user.password) < 50 or not user.password.startswith('$2')):
-        logger.warning(f"⚠️ Corrupted hash detected for {email} - forcing password reset")
-        # Here you would send a password reset email
-        # For now, just log it
-        return {"message": "Password reset link sent", "requires_reset": True}
-    
-    # Normal password reset flow
-    return {"message": "Password reset link sent"}
