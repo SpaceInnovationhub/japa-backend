@@ -1,24 +1,34 @@
 # app/database.py
+
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 import os
 
-# Get database URL from environment
-DATABASE_URL = os.getenv("postgresql://japa_user:password12345@localhost:5432/japa_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Configure engine with connection pool settings
+# Fix postgres:// → postgresql:// if needed
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(
     DATABASE_URL,
-    pool_size=20,           # Number of permanent connections
-    max_overflow=40,        # Extra connections during peak
-    pool_timeout=30,        # Seconds to wait for connection
-    pool_pre_ping=True,     # Verify connection before using
-    pool_recycle=3600       # Recycle connections after 1 hour
+    pool_pre_ping=True,          # Critical for Render Postgres
+    pool_recycle=1800,           # Recycle every 30 minutes (Render kills idle connections)
+    pool_size=10,
+    max_overflow=5,
+    connect_args={
+        "sslmode": "require",    # Required by Render
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
