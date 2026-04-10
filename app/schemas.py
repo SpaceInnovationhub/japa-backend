@@ -100,3 +100,26 @@ class AnnouncementResponse(AnnouncementBase):
 
     class Config:
         from_attributes = True
+
+
+# ====================== PASSWORD RESET SCHEMAS ======================
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: str
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+class PasswordResetResponse(BaseModel):
+    message: str
+    requires_reset: bool = False
