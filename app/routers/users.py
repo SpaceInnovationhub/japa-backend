@@ -1,76 +1,58 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models import User
-from app.schemas import UserCreate, UserLogin, UserResponse, Token
-from app.auth import hash_password, verify_password, create_access_token
-from pydantic import BaseModel
+import logging
 
-# DEFINE ROUTER FIRST - BEFORE ANY ENDPOINTS THAT USE IT
-router = APIRouter(prefix="/user", tags=["users"])
+from app import models, schemas, database
+from app.auth import get_current_user
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/users", tags=["Users"])
 
 class FcmUpdate(BaseModel):
     fcm_token: str
 
-# NOW use the router for endpoints
-@router.put("/fcm/{user_id}")
-def update_fcm(user_id: int, data: FcmUpdate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:  # Add error handling
-        raise HTTPException(status_code=404, detail="User not found")
-    user.fcm_token = data.fcm_token
-    db.commit()
-    return {"message": "FCM token updated"}
 
-@router.post("/register", response_model=UserResponse)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    db_user = db.query(User).filter(
-        (User.email == user.email) |
-        (User.passport_number == user.passport_number) |
-        (User.nin == user.nin)
-    ).first()
+# ====================== PROFILE ENDPOINT (What your frontend is calling) ======================
+@router.get("/profile", response_model=schemas.UserResponse)
+def get_user_profile(current_user: models.User = Depends(get_current_user)):
+    """Get current logged-in user's profile - This fixes your 404 error"""
+    return current_user
 
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email, passport number, or NIN already registered"
-        )
 
-    # Create new user
-    hashed_password = hash_password(user.password)
-    new_user = User(
-        fullname=user.fullname,
-        passport_number=user.passport_number,
-        nin=user.nin,
-        email=user.email,
-        phone=user.phone,
-        password=hashed_password,
-        country=user.country
-    )
+# ====================== FCM TOKEN UPDATE ======================
+@router.put("/fcm", response_model=dict)
+def update_fcm_token(
+    data: FcmUpdate, 
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """Update FCM token for the currently logged-in user"""
+    try:
+        current_user.fcm_token = data.fcm_token
+        db.commit()
+        logger.info(f"FCM token updated for user {current_user.id}")
+        return {"message": "FCM token updated successfully"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating FCM token: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update FCM token")
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
 
-@router.post("/login", response_model=Token)
-def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
-
-    if not db_user or not verify_password(user.password, db_user.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = create_access_token(data={"sub": str(db_user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+# ====================== GET USER BY ID (Admin or specific use) ======================
+@router.get("/{user_id}", response_model=schemas.UserResponse)
+def get_user_by_id(
+    user_id: int, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get any user by ID (you can add role check later)"""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
     return user
+
+
+# Optional: Keep register here only if you want a separate /users/register
+# But I recommend using /auth/register instead to avoid duplication
