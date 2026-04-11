@@ -1,47 +1,34 @@
 # app/database.py
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 import os
-from dotenv import load_dotenv
-from pathlib import Path
+import logging
 
-# Get the project root directory (where .env file is)
-project_root = Path(__file__).parent.parent
-env_path = project_root / ".env"
+logger = logging.getLogger(__name__)
 
-# Load .env file explicitly
-load_dotenv(dotenv_path=env_path)
-
-# Get database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Debug: Print what we found
-print(f"Looking for .env at: {env_path}")
-print(f".env file exists: {env_path.exists()}")
-print(f"DATABASE_URL: {DATABASE_URL}")
+# Fix old postgres:// prefix if present
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Check if DATABASE_URL is set
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL environment variable is not set. "
-        f"Checked path: {env_path}. "
-        "Please create a .env file with DATABASE_URL=postgresql://..."
-    )
-
-# Configure engine based on database type
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
-    print("✅ Using SQLite database")
-else:
-    engine = create_engine(DATABASE_URL)
-    print("✅ Using PostgreSQL database")
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,           # Critical: checks if connection is alive before using it
+    pool_recycle=300,             # Recycle connections every 5 minutes (Neon suspends fast)
+    pool_size=5,
+    max_overflow=10,
+    echo=False,                   # Set to True only for debugging
+    connect_args={
+        "sslmode": "require",     # Already in your URL but good to reinforce
+    }
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -49,3 +36,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Optional: Test connection on startup
+@app.on_event("startup")   # Add this in your main.py if not already present
+async def startup_event():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("✅ Successfully connected to Neon PostgreSQL")
+    except Exception as e:
+        logger.error(f"❌ Database connection failed: {e}")
