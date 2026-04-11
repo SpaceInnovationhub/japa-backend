@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel   # ← This was missing
+from pydantic import BaseModel
 import logging
 
 from app import models, schemas, database
@@ -15,40 +15,32 @@ class FcmUpdate(BaseModel):
     fcm_token: str
 
 
-# ====================== PROFILE ENDPOINT (Fixes your 404) ======================
 @router.get("/profile", response_model=schemas.UserResponse)
 def get_user_profile(current_user: models.User = Depends(get_current_user)):
     """Get current logged-in user's profile"""
+    logger.info(f"Profile requested for user ID: {current_user.id}")
     return current_user
 
 
-# ====================== UPDATE FCM TOKEN ======================
 @router.put("/fcm", response_model=dict)
 def update_fcm_token(
-    data: FcmUpdate, 
+    data: FcmUpdate,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
-    """Update FCM token for the currently logged-in user"""
+    """Update FCM token"""
     try:
         current_user.fcm_token = data.fcm_token
         db.commit()
-        logger.info(f"FCM token updated for user {current_user.id}")
         return {"message": "FCM token updated successfully"}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating FCM token: {e}")
+        logger.error(f"FCM update error: {e}")
         raise HTTPException(status_code=500, detail="Failed to update FCM token")
 
 
-# ====================== GET USER BY ID ======================
 @router.get("/{user_id}", response_model=schemas.UserResponse)
-def get_user_by_id(
-    user_id: int, 
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_user)  # You can restrict this later
-):
-    """Get user by ID"""
+def get_user_by_id(user_id: int, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
