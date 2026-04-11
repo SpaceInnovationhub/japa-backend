@@ -1,11 +1,12 @@
 ﻿import os
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 # Import your modules
-from app.database import engine, get_db
+from app.database import engine, get_db, test_db_connection
 from app import models
 from app.auth import hash_password
 
@@ -16,7 +17,7 @@ from app.routers.kyc import router as kyc_router
 from app.routers.announcements import router as announcements_router
 from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
-from app.routers.password_reset import router as password_reset_router   # Note: use password_reset (not password_reset.py)
+from app.routers.password_reset import router as password_reset_router
 
 # Create FastAPI app
 app = FastAPI(
@@ -46,26 +47,27 @@ app.include_router(kyc_router, prefix="/kyc", tags=["KYC Verification"])
 app.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
 app.include_router(tickets_router, prefix="/tickets", tags=["Support Tickets"])
 app.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
-app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])   # Changed to /password
+app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])
 
-# Create tables on startup
+# ====================== STARTUP EVENT ======================
 @app.on_event("startup")
 def startup_event():
     print("🚀 JAPA API is starting up...")
     print(f"📊 Environment: {os.getenv('ENVIRONMENT', 'development')}")
     print(f"🔗 CORS Origins: {allowed_origins}")
 
-    try:
-        # Test database connection
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
+    # Test database connection
+    if test_db_connection():
         print("✅ Successfully connected to Neon PostgreSQL")
+    else:
+        print("⚠️ Database connection test failed - check DATABASE_URL")
 
-        # Create/verify tables
+    # Create/verify tables
+    try:
         models.Base.metadata.create_all(bind=engine)
         print("✅ Database tables created/verified successfully")
     except Exception as e:
-        print(f"❌ Database error on startup: {e}")
+        print(f"❌ Error creating tables: {e}")
 
 
 @app.on_event("shutdown")
@@ -150,7 +152,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         phone=request.phone,
         country=request.country,
         fcm_token=request.fcm_token,
-        role="user",          # Default role
+        role="user",
         is_active=True
     )
 
