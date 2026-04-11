@@ -5,7 +5,7 @@ import shutil
 import os
 import logging
 
-from app import models, schemas, database
+from app import models, database
 from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -24,45 +24,40 @@ async def submit_kyc(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
-    """Submit KYC documents (ID + Selfie)"""
+    """Submit KYC documents"""
 
-    # Security check: Only the user themselves or admin can submit
-    if current_user.id != user_id and getattr(current_user, "role", "user") != "admin":
+    # Security: Only owner or admin
+    if current_user.id != user_id and getattr(current_user, 'role', 'user') != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only submit KYC for your own account"
         )
 
-    # Check if user exists
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Validate file types
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".pdf"}
-    
+    # Validate file extensions
+    allowed = {".jpg", ".jpeg", ".png", ".pdf"}
     id_ext = os.path.splitext(id_document.filename)[1].lower()
     selfie_ext = os.path.splitext(selfie_image.filename)[1].lower()
 
-    if id_ext not in allowed_extensions or selfie_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400, 
-            detail="Invalid file type. Allowed: jpg, jpeg, png, pdf"
-        )
+    if id_ext not in allowed or selfie_ext not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: jpg, jpeg, png, pdf")
 
-    # Create safe filenames
-    id_path = f"{UPLOAD_DIR}/id_{user_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}{id_ext}"
-    selfie_path = f"{UPLOAD_DIR}/selfie_{user_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}{selfie_ext}"
+    # Safe filenames
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    id_path = f"{UPLOAD_DIR}/id_{user_id}_{timestamp}{id_ext}"
+    selfie_path = f"{UPLOAD_DIR}/selfie_{user_id}_{timestamp}{selfie_ext}"
 
     try:
-        # Save files
-        with open(id_path, "wb") as buffer:
-            shutil.copyfileobj(id_document.file, buffer)
+        with open(id_path, "wb") as f:
+            shutil.copyfileobj(id_document.file, f)
 
-        with open(selfie_path, "wb") as buffer:
-            shutil.copyfileobj(selfie_image.file, buffer)
+        with open(selfie_path, "wb") as f:
+            shutil.copyfileobj(selfie_image.file, f)
 
-        # Update user KYC fields (make sure these columns exist in your User model)
+        # Update user
         user.id_document = id_path
         user.selfie_image = selfie_path
         user.kyc_verified = False
@@ -70,22 +65,13 @@ async def submit_kyc(
 
         db.commit()
 
-        logger.info(f"KYC submitted successfully for user {user_id}")
+        logger.info(f"KYC submitted for user {user_id}")
         return {
             "message": "KYC submitted successfully. Verification is pending.",
-            "user_id": user_id,
-            "id_document_path": id_path,
-            "selfie_path": selfie_path
+            "user_id": user_id
         }
 
     except Exception as e:
         db.rollback()
-        logger.error(f"KYC submission failed for user {user_id}: {e}")
-        # Clean up files if saving failed (optional)
-        for path in [id_path, selfie_path]:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except:
-                    pass
-        raise HTTPException(status_code=500, detail="Failed to save KYC documents")
+        logger.error(f"KYC error for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process KYC submission")
