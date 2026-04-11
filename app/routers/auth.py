@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 import logging
 
 from app import models, schemas, database
-from app.auth import verify_password, create_access_token
+from app.auth import hash_password, verify_password, create_access_token, get_current_user   # ← Fixed import
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
         )
 
     try:
-        hashed_pass = hash_password(user.password)   # Make sure hash_password is imported
+        hashed_pass = hash_password(user.password)
         if not hashed_pass or len(hashed_pass) < 50:
             raise HTTPException(status_code=500, detail="Password hashing failed")
     except Exception as e:
@@ -63,7 +63,6 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
     """Login user"""
     try:
-        # Find user
         user = db.query(models.User).filter(models.User.email == user_data.email).first()
 
         if not user:
@@ -74,7 +73,7 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Handle corrupted / old password hashes gracefully
+        # Handle corrupted password hash
         if not user.password or len(user.password) < 50 or not user.password.startswith("$2"):
             logger.error(f"Corrupted password hash detected for {user.email} (length: {len(user.password) if user.password else 0})")
             raise HTTPException(
@@ -92,7 +91,6 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Check account status
         if not getattr(user, 'is_active', True):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -122,4 +120,5 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """Get current user info"""
     return current_user
