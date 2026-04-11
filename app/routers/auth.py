@@ -1,17 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app import models, database, schemas
-from app.auth import hash_password, verify_password, create_access_token, get_current_user
 import logging
 
-# Set up logging
+from app import models, schemas, database
+from app.auth import verify_password, create_access_token
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["authentication"])
 
+
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
-    # 1. Check if user already exists (Email, Passport, or NIN)
+    """Register new user"""
+    # Check duplicates
     db_user = db.query(models.User).filter(
         (models.User.email == user.email) |
         (models.User.passport_number == user.passport_number) |
@@ -24,140 +26,99 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
             detail="Email, passport number, or NIN already registered"
         )
 
-    # 2. Hash the password for security with validation
     try:
-        hashed_pass = hash_password(user.password)
-        
-        # Validate the hash was created correctly
+        hashed_pass = hash_password(user.password)   # Make sure hash_password is imported
         if not hashed_pass or len(hashed_pass) < 50:
-            raise HTTPException(
-                status_code=500,
-                detail="Password hashing failed - invalid hash generated"
-            )
-        
-        logger.info(f"✅ Password hashed successfully for user: {user.email}")
-        
+            raise HTTPException(status_code=500, detail="Password hashing failed")
     except Exception as e:
-        logger.error(f"❌ Password hashing error for {user.email}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error processing password. Please try again."
-        )
+        logger.error(f"Password hashing error for {user.email}: {e}")
+        raise HTTPException(status_code=500, detail="Error processing password")
 
-    # 3. Create the new user object
     new_user = models.User(
         fullname=user.fullname,
+        email=user.email,
+        password=hashed_pass,
         passport_number=user.passport_number,
         nin=user.nin,
-        email=user.email,
         phone=user.phone,
-        password=hashed_pass,
         country=user.country,
-        fcm_token=user.fcm_token
+        fcm_token=user.fcm_token,
+        role="user",
+        is_active=True
     )
 
     try:
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        logger.info(f"✅ User registered successfully: {user.email}")
+        logger.info(f"User registered successfully: {user.email}")
         return new_user
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Registration Error for {user.email}: {str(e)}")
+        logger.error(f"Registration database error for {user.email}: {e}")
         raise HTTPException(status_code=500, detail="Could not complete registration")
+
 
 @router.post("/login", response_model=schemas.Token)
 def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
-    # 1. Find user by email
-    user = db.query(models.User).filter(models.User.email == user_data.email).first()
-    
-    # 2. Check if user exists
-    if not user:
-        logger.warning(f"❌ Login failed - user not found: {user_data.email}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # 3. Validate the password with error handling for corrupted hashes
+    """Login user"""
     try:
-        # Debug: Log hash info (without exposing the actual hash)
-        if user.password:
-            hash_length = len(user.password)
-            hash_prefix = user.password[:10] if user.password else "None"
-            logger.info(f"🔐 Verifying password for {user.email} - Hash length: {hash_length}, Prefix: {hash_prefix}")
-            
-            # Check if the hash looks corrupted
-            if hash_length < 50:
-                logger.error(f"⚠️ Corrupted password hash detected for user {user.email} (length: {hash_length})")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Account authentication error. Please reset your password.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            
-            # Check for proper bcrypt format
-            if not user.password.startswith('$2'):
-                logger.error(f"⚠️ Invalid bcrypt format for user {user.email} (starts with: {user.password[:2]})")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Account authentication error. Please contact support.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-        
-        # Perform the password verification
-        is_valid_password = verify_password(user_data.password, user.password)
-        
-        if not is_valid_password:
-            logger.warning(f"❌ Login failed - invalid password for user: {user_data.email}")
+        # Find user
+        user = db.query(models.User).filter(models.User.email == user_data.email).first()
+
+        if not user:
+            logger.warning(f"Login failed - user not found: {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        logger.info(f"✅ Login successful for user: {user.email}")
-        
+
+        # Handle corrupted / old password hashes gracefully
+        if not user.password or len(user.password) < 50 or not user.password.startswith("$2"):
+            logger.error(f"Corrupted password hash detected for {user.email} (length: {len(user.password) if user.password else 0})")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Your password is corrupted. Please use 'Forgot Password' to reset it.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Verify password
+        if not verify_password(user_data.password, user.password):
+            logger.warning(f"Invalid password attempt for {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Check account status
+        if not getattr(user, 'is_active', True):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is inactive. Contact support.",
+            )
+
+        # Generate token
+        access_token = create_access_token(data={"sub": str(user.id)})
+
+        logger.info(f"Login successful for {user.email}")
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": getattr(user, 'role', 'user'),
+            "user_id": user.id
+        }
+
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
-    except ValueError as e:
-        # Handle bcrypt salt errors specifically
-        logger.error(f"❌ Bcrypt error for user {user.email}: {str(e)}")
-        
-        # Check if it's the salt error we're seeing
-        if "salt" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Password hash is corrupted. Please reset your password.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication error. Please try again.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
     except Exception as e:
-        logger.error(f"❌ Unexpected error during login for {user.email}: {str(e)}")
+        logger.error(f"Unexpected login error for {user_data.email}: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during login. Please try again.",
+            status_code=500,
+            detail="An unexpected error occurred during login. Please try again later."
         )
 
-    # 4. Generate the JWT token
-    try:
-        access_token = create_access_token(data={"sub": str(user.id)})
-        logger.info(f"🔑 Token generated successfully for user: {user.email}")
-        return {"access_token": access_token, "token_type": "bearer"}
-    except Exception as e:
-        logger.error(f"❌ Token generation error for {user.email}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate access token.",
-        )
 
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
