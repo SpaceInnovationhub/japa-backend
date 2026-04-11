@@ -8,7 +8,8 @@ from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/users", tags=["Users"])
+# No prefix here — we'll add it only in main.py
+router = APIRouter(tags=["Users"])
 
 
 class FcmUpdate(BaseModel):
@@ -18,7 +19,7 @@ class FcmUpdate(BaseModel):
 @router.get("/profile", response_model=schemas.UserResponse)
 def get_user_profile(current_user: models.User = Depends(get_current_user)):
     """Get current logged-in user's profile"""
-    logger.info(f"Profile requested for user ID: {current_user.id}")
+    logger.info(f"Profile requested for user: {current_user.id}")
     return current_user
 
 
@@ -28,10 +29,11 @@ def update_fcm_token(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
-    """Update FCM token"""
+    """Update FCM token for logged-in user"""
     try:
         current_user.fcm_token = data.fcm_token
         db.commit()
+        logger.info(f"FCM token updated for user {current_user.id}")
         return {"message": "FCM token updated successfully"}
     except Exception as e:
         db.rollback()
