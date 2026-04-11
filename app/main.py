@@ -1,20 +1,13 @@
 ﻿import os
-import sys
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Absolute path setup
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+# Import your modules
 from app.database import engine, get_db
 from app import models
-from app.auth import hash_password 
+from app.auth import hash_password
 
 # Import routers
 from app.routers.auth import router as auth_router
@@ -23,44 +16,92 @@ from app.routers.kyc import router as kyc_router
 from app.routers.announcements import router as announcements_router
 from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
-from app.routers import password_reset
+from app.routers.password_reset import router as password_reset_router   # Note: use password_reset (not password_reset.py)
 
 # Create FastAPI app
 app = FastAPI(
-    title="JAPA Backend API", 
+    title="JAPA Backend API",
     version="1.0.0",
     description="JAPA Application Backend API",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
-# CORS Configuration - Use environment variables for production
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+# CORS Configuration
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://japa-backend.onrender.com").split(",")
+allowed_origins = [origin.strip() for origin in allowed_origins if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != ["*"] else ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include Routers with proper prefixes
+# Include Routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(users_router, prefix="/users", tags=["Users"])
 app.include_router(kyc_router, prefix="/kyc", tags=["KYC Verification"])
 app.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
 app.include_router(tickets_router, prefix="/tickets", tags=["Support Tickets"])
 app.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
-app.include_router(password_reset.router, prefix="/password-reset", tags=["Password Management"])
+app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])   # Changed to /password
 
-# Create tables (with error handling)
-try:
-    models.Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created/verified successfully")
-except Exception as e:
-    print(f"❌ Error creating database tables: {e}")
+# Create tables on startup
+@app.on_event("startup")
+def startup_event():
+    print("🚀 JAPA API is starting up...")
+    print(f"📊 Environment: {os.getenv('ENVIRONMENT', 'development')}")
+    print(f"🔗 CORS Origins: {allowed_origins}")
 
-# Pydantic Model for Signup
+    try:
+        # Test database connection
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("✅ Successfully connected to Neon PostgreSQL")
+
+        # Create/verify tables
+        models.Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created/verified successfully")
+    except Exception as e:
+        print(f"❌ Database error on startup: {e}")
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    print("🛑 JAPA API is shutting down...")
+
+
+# ====================== HEALTH & ROOT ROUTES ======================
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "project": "JAPA Backend API",
+        "version": "1.0.0",
+        "message": "Welcome to the JAPA API. Documentation is available at /docs",
+        "environment": os.getenv("ENVIRONMENT", "development")
+    }
+
+
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    """Health check with real DB test"""
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception:
+        db_status = "disconnected"
+
+    return {
+        "status": "healthy",
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "database": db_status
+    }
+
+
+# ====================== SIGNUP ENDPOINT ======================
 class SignupRequest(BaseModel):
     fullname: str
     email: EmailStr
@@ -71,77 +112,35 @@ class SignupRequest(BaseModel):
     country: str | None = None
     fcm_token: str | None = None
 
-# --- HEALTH CHECK / ROOT ROUTE ---
-@app.get("/")
-def read_root():
-    return {
-        "status": "online",
-        "project": "JAPA Backend API",
-        "version": "1.0.0",
-        "message": "Welcome to the JAPA API. Documentation is available at /docs",
-        "endpoints": {
-            "auth": "/auth",
-            "users": "/users",
-            "kyc": "/kyc",
-            "password_reset": "/password-reset",
-            "docs": "/docs"
-        }
-    }
-
-@app.get("/health")
-def health_check():
-    """Health check endpoint for monitoring"""
-    return {
-        "status": "healthy",
-        "environment": os.getenv("ENVIRONMENT", "development"),
-        "database": "connected"  # You could add actual DB check here
-    }
 
 @app.post("/signup")
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    # 1. Check for duplicate Email, NIN, or Passport
-    existing_user = db.query(models.User).filter(
-        (models.User.email == request.email) | 
+    # Check for duplicates
+    existing = db.query(models.User).filter(
+        (models.User.email == request.email) |
         (models.User.passport_number == request.passport_number) |
         (models.User.nin == request.nin)
     ).first()
 
-    if existing_user:
-        if existing_user.email == request.email:
-            detail = "Email already registered"
-        elif existing_user.passport_number == request.passport_number:
-            detail = "Passport number already registered"
+    if existing:
+        if existing.email == request.email:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        elif existing.passport_number == request.passport_number:
+            raise HTTPException(status_code=400, detail="Passport number already registered")
         else:
-            detail = "NIN already registered"
-            
-        raise HTTPException(status_code=400, detail=detail)
+            raise HTTPException(status_code=400, detail="NIN already registered")
 
-    # 2. Validate password strength
     if len(request.password) < 8:
-        raise HTTPException(
-            status_code=400, 
-            detail="Password must be at least 8 characters long"
-        )
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
 
-    # 3. Hash the password with error handling
     try:
         hashed_password = hash_password(request.password)
-        
-        # Validate the hash was created correctly
         if not hashed_password or len(hashed_password) < 50:
-            raise HTTPException(
-                status_code=500,
-                detail="Error processing password. Please try again."
-            )
-            
+            raise HTTPException(status_code=500, detail="Password processing failed")
     except Exception as e:
         print(f"❌ Password hashing error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error creating account. Please try again."
-        )
+        raise HTTPException(status_code=500, detail="Error creating account")
 
-    # 4. Create new user
     new_user = models.User(
         fullname=request.fullname,
         email=request.email,
@@ -150,15 +149,16 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         nin=request.nin,
         phone=request.phone,
         country=request.country,
-        fcm_token=request.fcm_token
+        fcm_token=request.fcm_token,
+        role="user",          # Default role
+        is_active=True
     )
 
     try:
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
-        # Don't return sensitive data
+
         return {
             "message": "User registered successfully",
             "user_id": new_user.id,
@@ -167,40 +167,11 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         }
     except Exception as e:
         db.rollback()
-        print(f"❌ DATABASE ERROR: {e}")
-        raise HTTPException(status_code=500, detail="Database insertion failed")
+        print(f"❌ Database insertion error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user. Please try again.")
 
-# Optional: Add a shutdown event handler
-@app.on_event("shutdown")
-def shutdown_event():
-    """Cleanup on application shutdown"""
-    print("🛑 JAPA API is shutting down...")
-
-# Optional: Add startup event
-@app.on_event("startup")
-def startup_event():
-    """Initialize on application startup"""
-    print("🚀 JAPA API is starting up...")
-    print(f"📊 Environment: {os.getenv('ENVIRONMENT', 'development')}")
-    print(f"🔗 CORS Origins: {ALLOWED_ORIGINS}")
-    print("✅ All routers registered successfully")
 
 if __name__ == "__main__":
     import uvicorn
-    
-    # Get port from environment variable or default to 8000
     port = int(os.environ.get("PORT", 8000))
-    host = os.environ.get("HOST", "0.0.0.0")
-    reload = os.environ.get("ENVIRONMENT", "development") == "development"
-    
-    print(f"🚀 Starting JAPA API on {host}:{port}")
-    print(f"🔄 Auto-reload: {reload}")
-    print(f"📚 API Documentation: http://{host}:{port}/docs")
-    
-    uvicorn.run(
-        "app.main:app", 
-        host=host, 
-        port=port, 
-        reload=reload,
-        log_level="info"
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, log_level="info")
