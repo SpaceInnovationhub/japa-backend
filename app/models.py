@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Bool
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -14,16 +15,33 @@ class User(Base):
     phone = Column(String(20))
     password = Column(String(255), nullable=False)
     country = Column(String(50))
-    fcm_token = Column(Text, nullable=True) # Changed to Text for flexibility
+    fcm_token = Column(Text, nullable=True)
 
-    role = Column(String(20), default="user") # 'user', 'admin', 'embassy'
+    role = Column(String(20), default="user")          # 'user', 'admin', 'embassy'
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # ==================== KYC FIELDS (Newly Added) ====================
+    id_document = Column(String(500), nullable=True)       # Path to ID document
+    selfie_image = Column(String(500), nullable=True)      # Path to selfie
+    kyc_verified = Column(Boolean, default=False)
+    kyc_submitted_at = Column(DateTime(timezone=True), nullable=True)
+    kyc_verified_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     tickets = relationship("SupportTicket", back_populates="user", cascade="all, delete-orphan")
     evacuation_requests = relationship("EvacuationRequest", back_populates="user", cascade="all, delete-orphan")
     incident_reports = relationship("IncidentReport", back_populates="user", cascade="all, delete-orphan")
+
+    # Optional: Add a method for easier KYC status
+    @property
+    def kyc_status(self):
+        if self.kyc_verified:
+            return "Verified"
+        elif self.kyc_submitted_at:
+            return "Pending Review"
+        return "Not Submitted"
+
 
 class SupportTicket(Base):
     __tablename__ = "support_tickets"
@@ -38,6 +56,7 @@ class SupportTicket(Base):
 
     user = relationship("User", back_populates="tickets")
 
+
 class Announcement(Base):
     __tablename__ = "announcements"
 
@@ -47,6 +66,7 @@ class Announcement(Base):
     content = Column(Text, nullable=False)
     category = Column(String(20)) 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 
 class IncidentReport(Base):
     __tablename__ = "incident_reports"
@@ -62,6 +82,7 @@ class IncidentReport(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     user = relationship("User", back_populates="incident_reports")
+
 
 class EvacuationRequest(Base):
     __tablename__ = "evacuation_requests"
