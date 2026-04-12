@@ -63,7 +63,15 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
     """Login user"""
     try:
-        user = db.query(models.User).filter(models.User.email == user_data.email).first()
+        # Select only existing columns to avoid "column does not exist" error
+        user = db.query(
+            models.User.id,
+            models.User.fullname,
+            models.User.email,
+            models.User.password,
+            models.User.role,
+            models.User.is_active
+        ).filter(models.User.email == user_data.email).first()
 
         if not user:
             logger.warning(f"Login failed - user not found: {user_data.email}")
@@ -75,7 +83,7 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
 
         # Handle corrupted password hash
         if not user.password or len(user.password) < 50 or not user.password.startswith("$2"):
-            logger.error(f"Corrupted password hash detected for {user.email} (length: {len(user.password) if user.password else 0})")
+            logger.error(f"Corrupted password hash detected for {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Your password is corrupted. Please use 'Forgot Password' to reset it.",
@@ -84,7 +92,7 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
 
         # Verify password
         if not verify_password(user_data.password, user.password):
-            logger.warning(f"Invalid password attempt for {user.email}")
+            logger.warning(f"Invalid password attempt for {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
@@ -100,7 +108,7 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
         # Generate token
         access_token = create_access_token(data={"sub": str(user.id)})
 
-        logger.info(f"Login successful for {user.email}")
+        logger.info(f"Login successful for {user_data.email}")
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -116,9 +124,3 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(database.get_db)):
             status_code=500,
             detail="An unexpected error occurred during login. Please try again later."
         )
-
-
-@router.get("/me", response_model=schemas.UserResponse)
-def read_users_me(current_user: models.User = Depends(get_current_user)):
-    """Get current user info"""
-    return current_user
