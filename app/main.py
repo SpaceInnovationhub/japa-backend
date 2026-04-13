@@ -172,12 +172,72 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         print(f"❌ Database insertion error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user. Please try again.")
 
+# ====================== ONE-TIME ADMIN SEEDER ======================
 @app.post("/seed-admins")
 def seed_admins():
-    from app.scripts.create_admins import create_initial_admins
-    create_initial_admins()
-    return {"message": "Initial admin accounts created successfully"}
+    """Create initial admin accounts - Call this ONCE only"""
+    try:
+        from app.auth import hash_password
+        from app.models import User
+        
+        db = next(get_db())   # Get database session
 
+        created = []
+
+        # 1. Super Admin - Nigeria HQ
+        if not db.query(User).filter(User.email == "admin@japa.ng").first():
+            super_admin = User(
+                fullname="Nigeria HQ Super Admin",
+                email="admin@japa.ng",
+                password=hash_password("JapaAdmin2025!"),
+                country="Nigeria",
+                role="super_admin",
+                is_active=True,
+                phone="+2349012345678"
+            )
+            db.add(super_admin)
+            created.append("Super Admin (Nigeria)")
+
+        # 2. Embassy Admins
+        embassies = [
+            ("United States of America", "admin@japa.us", "JapaUS2025!", "🇺🇸 United States Embassy Admin"),
+            ("United Kingdom", "admin@japa.uk", "JapaUK2025!", "🇬🇧 United Kingdom Embassy Admin"),
+            ("France", "admin@japa.fr", "JapaFR2025!", "🇫🇷 France Embassy Admin"),
+            ("Canada", "admin@japa.ca", "JapaCA2025!", "🇨🇦 Canada Embassy Admin"),
+        ]
+
+        for country, email, password, fullname in embassies:
+            if not db.query(User).filter(User.email == email).first():
+                admin = User(
+                    fullname=fullname,
+                    email=email,
+                    password=hash_password(password),
+                    country=country,
+                    role="embassy",
+                    is_active=True,
+                    phone="+1234567890"
+                )
+                db.add(admin)
+                created.append(f"Admin for {country}")
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": "Initial admin accounts created successfully!",
+            "created": created,
+            "credentials": {
+                "super_admin": {"email": "admin@japa.ng", "password": "JapaAdmin2025!"},
+                "usa": {"email": "admin@japa.us", "password": "JapaUS2025!"},
+                "uk": {"email": "admin@japa.uk", "password": "JapaUK2025!"},
+                "france": {"email": "admin@japa.fr", "password": "JapaFR2025!"},
+                "canada": {"email": "admin@japa.ca", "password": "JapaCA2025!"}
+            }
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
