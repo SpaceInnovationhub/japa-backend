@@ -172,6 +172,11 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         print(f"❌ Database insertion error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user. Please try again.")
 
+@app.post("/seed-admins")
+def seed_admins():
+    from app.scripts.create_admins import create_initial_admins
+    create_initial_admins()
+    return {"message": "Initial admin accounts created successfully"}
 
 if __name__ == "__main__":
     import uvicorn
