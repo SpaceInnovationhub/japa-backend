@@ -29,7 +29,7 @@ app = FastAPI(
 )
 
 # CORS Configuration
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://japa-backend.onrender.com").split(",")
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "https://frontend-kegw.onrender.com://japa-backend.onrender.com").split(",")
 allowed_origins = [origin.strip() for origin in allowed_origins if origin.strip()]
 
 app.add_middleware(
