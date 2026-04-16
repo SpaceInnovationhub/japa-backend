@@ -6,7 +6,6 @@ from typing import Optional, List
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    # Added these so your Flutter app can store user info locally upon login
     role: str
     user_id: int
 
@@ -22,7 +21,6 @@ class UserCreate(BaseModel):
     nin: str
     phone: str
     country: str
-    # CRITICAL FIX: Added fcm_token here so register() doesn't throw a 422 error
     fcm_token: Optional[str] = None 
     role: Optional[str] = "user"
 
@@ -38,7 +36,6 @@ class UserResponse(BaseModel):
     country: str
     role: str
     is_active: bool
-    # Added this to match your models.py
     created_at: Optional[datetime] = None 
 
     class Config:
@@ -58,6 +55,24 @@ class IncidentReportResponse(BaseModel):
     description: str
     media_path: Optional[str] = None
     status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# --- EVACUATION REQUEST SCHEMAS ---
+class EvacuationCreate(BaseModel):
+    country: str
+    location: str
+    description: str
+
+class EvacuationResponse(BaseModel):   # Recommended - add this too
+    id: int
+    user_id: int
+    country: str
+    location: str
+    description: str
+    status: str = "pending"           # e.g. pending, approved, completed
     created_at: datetime
 
     class Config:
@@ -101,24 +116,20 @@ class AnnouncementResponse(AnnouncementBase):
     class Config:
         from_attributes = True
 
-
 # ====================== PASSWORD RESET SCHEMAS ======================
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
-
 
 class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str
     confirm_password: str
 
-
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
     confirm_password: str
-
 
 class PasswordResetResponse(BaseModel):
     message: str
