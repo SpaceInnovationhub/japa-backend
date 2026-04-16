@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from .database import Base
 from datetime import datetime
 
+# ====================== USER MODEL ======================
 class User(Base):
     __tablename__ = "users"
 
@@ -17,13 +18,13 @@ class User(Base):
     country = Column(String(50))
     fcm_token = Column(Text, nullable=True)
 
-    role = Column(String(20), default="user")          # 'user', 'admin', 'embassy'
+    role = Column(String(20), default="user")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # ==================== KYC FIELDS (Newly Added) ====================
-    id_document = Column(String(500), nullable=True)       # Path to ID document
-    selfie_image = Column(String(500), nullable=True)      # Path to selfie
+    # ==================== KYC FIELDS =====================
+    id_document = Column(String(500), nullable=True)
+    selfie_image = Column(String(500), nullable=True)
     kyc_verified = Column(Boolean, default=False)
     kyc_submitted_at = Column(DateTime(timezone=True), nullable=True)
     kyc_verified_at = Column(DateTime(timezone=True), nullable=True)
@@ -33,7 +34,6 @@ class User(Base):
     evacuation_requests = relationship("EvacuationRequest", back_populates="user", cascade="all, delete-orphan")
     incident_reports = relationship("IncidentReport", back_populates="user", cascade="all, delete-orphan")
 
-    # Optional: Add a method for easier KYC status
     @property
     def kyc_status(self):
         if self.kyc_verified:
@@ -43,6 +43,7 @@ class User(Base):
         return "Not Submitted"
 
 
+# ====================== SUPPORT TICKET ======================
 class SupportTicket(Base):
     __tablename__ = "support_tickets"
 
@@ -57,6 +58,7 @@ class SupportTicket(Base):
     user = relationship("User", back_populates="tickets")
 
 
+# ====================== ANNOUNCEMENT ======================
 class Announcement(Base):
     __tablename__ = "announcements"
 
@@ -64,10 +66,11 @@ class Announcement(Base):
     embassy_country = Column(String(50))
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False)
-    category = Column(String(20)) 
+    category = Column(String(20))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+# ====================== INCIDENT REPORT ======================
 class IncidentReport(Base):
     __tablename__ = "incident_reports"
 
@@ -75,8 +78,8 @@ class IncidentReport(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     embassy_country = Column(String(100))
     description = Column(Text, nullable=False)
-    media_path = Column(String(500)) 
-    location_coords = Column(String(100)) 
+    media_path = Column(String(500))
+    location_coords = Column(String(100))
     status = Column(String(50), default="Pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -84,12 +87,15 @@ class IncidentReport(Base):
     user = relationship("User", back_populates="incident_reports")
 
 
+# ====================== EVACUATION REQUEST (FINAL VERSION) ======================
 class EvacuationRequest(Base):
     __tablename__ = "evacuation_requests"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     country = Column(String(50), nullable=False)
+    location = Column(String(200), nullable=False)      # Increased length
+    description = Column(Text, nullable=False)
     status = Column(String(30), default="Pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
