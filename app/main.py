@@ -6,6 +6,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 # Import your modules
+import os
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from pydantic import BaseModel, EmailStr
+
+# Import local modules
 from app.database import engine, get_db, test_db_connection
 from app import models
 from app.auth import hash_password
@@ -28,9 +36,13 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS Configuration
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "https://frontend-kegw.onrender.com://japa-backend.onrender.com").split(",")
-allowed_origins = [origin.strip() for origin in allowed_origins if origin.strip()]
+# ====================== FIXED CORS CONFIGURATION ======================
+# Fixed the typo where origins were merged with '://'
+# Corrected CORS Configuration
+default_origins = "https://frontend-kegw.onrender.com,https://japa-backend.onrender.com"
+allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", default_origins)
+# This splits the string by commas and removes extra spaces
+allowed_origins = [origin.strip() for origin in allowed_origins_raw.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -175,12 +187,12 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 # ====================== ONE-TIME ADMIN SEEDER ======================
 @app.post("/seed-admins")
 def seed_admins():
-    """Create initial admin accounts - Call this ONCE only"""
+    """Create initial admin accounts - Call this via POST in Postman"""
     try:
         from app.auth import hash_password
         from app.models import User
         
-        db = next(get_db())   # Get database session
+        db = next(get_db()) 
 
         created = []
 
