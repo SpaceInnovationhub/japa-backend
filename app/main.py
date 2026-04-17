@@ -36,13 +36,14 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# ====================== FIXED CORS CONFIGURATION ======================
-# Fixed the typo where origins were merged with '://'
-# Corrected CORS Configuration
-default_origins = "https://frontend-kegw.onrender.com,https://japa-backend.onrender.com"
-allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", default_origins)
-# This splits the string by commas and removes extra spaces
-allowed_origins = [origin.strip() for origin in allowed_origins_raw.split(",") if origin.strip()]
+# ====================== CORRECTED CORS CONFIGURATION ======================
+# Ensure your EXACT frontend URL is in this list
+allowed_origins = [
+    "https://frontend-kegw.onrender.com",  # Your actual frontend
+    "https://japa-backend.onrender.com",   # Your backend (for self-calls)
+    "http://localhost:3000",               # For local React development
+    "http://localhost:5173",               # For local Vite development
+]
 
 app.add_middleware(
     CORSMiddleware,
