@@ -10,6 +10,7 @@ from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
+# FIX: Removed prefix="/kyc" because it's already defined in main.py
 router = APIRouter(tags=["KYC Verification"])
 
 UPLOAD_DIR = "uploads/kyc"
@@ -27,7 +28,7 @@ async def submit_kyc(
 ):
     """User submits KYC documents (ID + Selfie)"""
 
-    if current_user.id != user_id and getattr(current_user, 'role', 'user') != "admin":
+    if current_user.id != user_id and getattr(current_user, 'role', 'user') != "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only submit KYC for your own account"
@@ -89,7 +90,7 @@ def verify_kyc(
 ):
     """Embassy Admin / Staff verifies (approves or rejects) KYC"""
 
-    if getattr(current_user, 'role', 'user') not in ["admin", "embassy", "embassy_staff"]:
+    if getattr(current_user, 'role', 'user') not in ["super_admin", "embassy", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only embassy staff or admins can verify KYC"
@@ -133,17 +134,27 @@ def get_pending_kyc(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
-    """Get list of users with pending KYC verification"""
+    """Get list of users with pending KYC verification filtered by Admin's country"""
     
-    if getattr(current_user, 'role', 'user') not in ["admin", "embassy", "embassy_staff"]:
+    # Security check: Only Admins or Embassy Staff
+    if getattr(current_user, 'role', 'user') not in ["super_admin", "embassy", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied. Only embassy staff can view pending KYC."
         )
 
-    pending_users = db.query(models.User).filter(
+    # Start the query for users who submitted KYC but aren't verified yet
+    query = db.query(models.User).filter(
         models.User.kyc_submitted_at.isnot(None),
         models.User.kyc_verified == False
-    ).all()
+    )
+
+    # DYNAMIC FILTER: 
+    # If the user is an 'embassy' role, only show users from THEIR country
+    if current_user.role == "embassy":
+        query = query.filter(models.User.country == current_user.country)
+        logger.info(f"Filtering pending KYC for country: {current_user.country}")
+
+    pending_users = query.all()
 
     return pending_users
