@@ -26,6 +26,7 @@ from app.routers.announcements import router as announcements_router
 from app.routers.tickets import router as tickets_router
 from app.routers.incidents import router as incidents_router
 from app.routers.password_reset import router as password_reset_router
+from app.routers import visa
 
 # Create FastAPI app
 app = FastAPI(
@@ -61,6 +62,7 @@ app.include_router(announcements_router, prefix="/announcements", tags=["Announc
 app.include_router(tickets_router, prefix="/tickets", tags=["Support Tickets"])
 app.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
 app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])
+app.include_router(visa.router, prefix="/visa", tags=["Visa Information"])
 
 # ====================== STARTUP EVENT ======================
 @app.on_event("startup")
