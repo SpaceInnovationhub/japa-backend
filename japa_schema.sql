@@ -1,10 +1,8 @@
--- 1. Create the database (run this separately if the DB doesn't exist yet)
+-- 1. Setup
 CREATE DATABASE japa_db;
-
--- Connect to the new database first:
 -- \c japa_db
 
--- 2. Users table (core table)
+-- 2. Users (Added: role, is_active)
 CREATE TABLE users (
     id              SERIAL PRIMARY KEY,
     fullname        VARCHAR(100)        NOT NULL,
@@ -12,33 +10,49 @@ CREATE TABLE users (
     nin             VARCHAR(50) UNIQUE,
     email           VARCHAR(100) UNIQUE NOT NULL,
     phone           VARCHAR(20),
-    password        TEXT                NOT NULL,   -- should be hashed!
-    country         VARCHAR(50),
+    password        TEXT                NOT NULL, -- Hashed Bcrypt string
+    country         VARCHAR(50),        -- User's origin/residence
+    role            VARCHAR(20)         DEFAULT 'user', -- 'user', 'admin', 'embassy'
+    is_active       BOOLEAN             DEFAULT TRUE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Support tickets (updated version with embassy_country + timestamp)
+-- 3. Support Tickets (Added: priority)
 CREATE TABLE support_tickets (
     id              SERIAL PRIMARY KEY,
     user_id         INT REFERENCES users(id) ON DELETE CASCADE,
     embassy_country VARCHAR(50),
     subject         VARCHAR(200)        NOT NULL,
     description     TEXT                NOT NULL,
-    status          VARCHAR(30)         DEFAULT 'open',
+    status          VARCHAR(30)         DEFAULT 'open', -- 'open', 'in-progress', 'closed'
+    priority        VARCHAR(10)         DEFAULT 'medium',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Announcements (updated version with category + timestamp)
+-- 4. Announcements
 CREATE TABLE announcements (
     id              SERIAL PRIMARY KEY,
+    author_id       INT REFERENCES users(id), -- Tracks which admin posted it
     embassy_country VARCHAR(50),
     title           VARCHAR(200)        NOT NULL,
     content         TEXT                NOT NULL,
-    category        VARCHAR(20),                    -- e.g. 'visa', 'travel', 'safety', 'general'
+    category        VARCHAR(20),        -- 'visa', 'travel', 'safety', 'general'
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Evacuation requests
+-- 5. Incident Reports (Added: coordinates for GPS)
+CREATE TABLE incident_reports (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT REFERENCES users(id) ON DELETE CASCADE,
+    embassy_country VARCHAR(50),
+    description     TEXT                NOT NULL,
+    media_path      TEXT,               -- Path to file saved via your FileService
+    location_coords VARCHAR(100),       -- "Lat, Long"
+    status          VARCHAR(30)         DEFAULT 'pending',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Evacuation Requests
 CREATE TABLE evacuation_requests (
     id          SERIAL PRIMARY KEY,
     user_id     INT REFERENCES users(id) ON DELETE CASCADE,
@@ -47,21 +61,6 @@ CREATE TABLE evacuation_requests (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Incident reports (new table)
-CREATE TABLE incident_reports (
-    id              SERIAL PRIMARY KEY,
-    user_id         INT REFERENCES users(id) ON DELETE CASCADE,
-    embassy_country VARCHAR(50),
-    description     TEXT                NOT NULL,
-    media_path      TEXT,                           -- path or URL to photo/video
-    status          VARCHAR(30)         DEFAULT 'pending',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Optional: useful indexes (add these after data volume grows)
-CREATE INDEX idx_support_tickets_user    ON support_tickets(user_id);
-CREATE INDEX idx_support_tickets_country ON support_tickets(embassy_country);
-CREATE INDEX idx_announcements_country   ON announcements(embassy_country);
-CREATE INDEX idx_evacuation_user         ON evacuation_requests(user_id);
-CREATE INDEX idx_incident_user           ON incident_reports(user_id);
-CREATE INDEX idx_incident_country        ON incident_reports(embassy_country);
+-- Indexes for Speed
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_announcements_country ON announcements(embassy_country);

@@ -1,5 +1,5 @@
-from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from datetime import date, datetime
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional, List
 
 # --- AUTH & TOKEN SCHEMAS ---
@@ -134,3 +134,25 @@ class PasswordChange(BaseModel):
 class PasswordResetResponse(BaseModel):
     message: str
     requires_reset: bool = False
+
+# ====================== VISA INFORMATION SCHEMAS ======================
+class VisaInformationUpsert(BaseModel):
+    country: str
+    visa_type: str
+    visa_number: Optional[str] = None
+
+    issue_date: Optional[date] = None
+    arrival_date: date
+    expiry_date: date
+    departure_date: Optional[date] = None
+
+    length_of_stay_days: Optional[int] = None
+    entry_type: Optional[str] = None
+
+class VisaInformationResponse(VisaInformationUpsert):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime

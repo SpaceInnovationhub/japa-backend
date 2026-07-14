@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -100,3 +100,37 @@ class EvacuationRequest(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="evacuation_requests")
+
+# ====================== VISA INFORMATION ======================
+class VisaInformation(Base):
+    __tablename__ = "visa_information"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    country = Column(String(100), nullable=False)
+    visa_type = Column(String(100), nullable=False)
+    visa_number = Column(String(120), nullable=True)
+
+    issue_date = Column(Date, nullable=True)
+    arrival_date = Column(Date, nullable=False)
+    expiry_date = Column(Date, nullable=False)
+    departure_date = Column(Date, nullable=True)
+
+    length_of_stay_days = Column(Integer, nullable=True)
+    entry_type = Column(String(50), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    user = relationship("User")
