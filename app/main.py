@@ -28,13 +28,23 @@ from app.routers.incidents import router as incidents_router
 from app.routers.password_reset import router as password_reset_router
 from app.routers import visa
 
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.services.scheduler_service import (
+    start_scheduler,
+    stop_scheduler,
+)
+
 # Create FastAPI app
 app = FastAPI(
     title="JAPA Backend API",
     version="1.0.0",
     description="JAPA Application Backend API",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ====================== CORRECTED CORS CONFIGURATION ======================
@@ -71,6 +81,9 @@ def startup_event():
     print(f"📊 Environment: {os.getenv('ENVIRONMENT', 'development')}")
     print(f"🔗 CORS Origins: {allowed_origins}")
 
+    # Start the scheduler
+    start_scheduler()
+
     # Test database connection
     if test_db_connection():
         print("✅ Successfully connected to Neon PostgreSQL")
@@ -88,6 +101,8 @@ def startup_event():
 @app.on_event("shutdown")
 def shutdown_event():
     print("🛑 JAPA API is shutting down...")
+    # Stop the scheduler
+    stop_scheduler()
 
 
 # ====================== HEALTH & ROOT ROUTES ======================
