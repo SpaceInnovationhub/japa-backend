@@ -134,3 +134,20 @@ class VisaInformation(Base):
     )
 
     user = relationship("User")
+
+    # ====================== VISA REMINDER LOG ======================
+class VisaReminderLog(Base):
+    __tablename__ = "visa_reminder_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    reminder_type = Column(String(50), nullable=False)  # e.g. "30_days", "7_days", "expired"
+    sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    status = Column(String(30), default="SENT")  # "SENT", "FAILED"
+
+    user = relationship("User")
