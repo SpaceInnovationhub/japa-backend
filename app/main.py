@@ -1,17 +1,10 @@
 ﻿import os
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
-# Import your modules
-import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # Import local modules
 from app.database import engine, get_db, test_db_connection
@@ -28,27 +21,10 @@ from app.routers.incidents import router as incidents_router
 from app.routers.password_reset import router as password_reset_router
 from app.routers import visa
 
-from contextlib import asynccontextmanager
+# Import scheduler services
+from app.services.scheduler_service import start_scheduler, stop_scheduler
 
-from fastapi import FastAPI
-
-from app.services.scheduler_service import (
-    start_scheduler,
-    stop_scheduler,
-)
-
-# Create FastAPI app
-app = FastAPI(
-    title="JAPA Backend API",
-    version="1.0.0",
-    description="JAPA Application Backend API",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan,
-)
-
-# ====================== CORRECTED CORS CONFIGURATION ======================
-# Ensure your EXACT frontend URL is in this list
+# Allowed CORS Origins
 allowed_origins = [
     "https://frontend-kegw.onrender.com",  # Your actual frontend
     "https://japa-backend.onrender.com",   # Your backend (for self-calls)
@@ -56,27 +32,11 @@ allowed_origins = [
     "http://localhost:5173",               # For local Vite development
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# Include Routers
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-app.include_router(users_router, prefix="/users", tags=["Users"])
-app.include_router(kyc_router, prefix="/kyc", tags=["KYC Verification"])
-app.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
-app.include_router(tickets_router, prefix="/tickets", tags=["Support Tickets"])
-app.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
-app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])
-app.include_router(visa.router, prefix="/visa", tags=["Visa Information"])
-
-# ====================== STARTUP EVENT ======================
-@app.on_event("startup")
-def startup_event():
+# ====================== LIFESPAN MANAGER ======================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- STARTUP LOGIC ---
     print("🚀 JAPA API is starting up...")
     print(f"📊 Environment: {os.getenv('ENVIRONMENT', 'development')}")
     print(f"🔗 CORS Origins: {allowed_origins}")
@@ -97,12 +57,41 @@ def startup_event():
     except Exception as e:
         print(f"❌ Error creating tables: {e}")
 
+    yield  # Application runs while yielded
 
-@app.on_event("shutdown")
-def shutdown_event():
+    # --- SHUTDOWN LOGIC ---
     print("🛑 JAPA API is shutting down...")
-    # Stop the scheduler
     stop_scheduler()
+
+
+# ====================== CREATE FASTAPI APP ======================
+app = FastAPI(
+    title="JAPA Backend API",
+    version="1.0.0",
+    description="JAPA Application Backend API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
+
+# Enable CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include Routers
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(users_router, prefix="/users", tags=["Users"])
+app.include_router(kyc_router, prefix="/kyc", tags=["KYC Verification"])
+app.include_router(announcements_router, prefix="/announcements", tags=["Announcements"])
+app.include_router(tickets_router, prefix="/tickets", tags=["Support Tickets"])
+app.include_router(incidents_router, prefix="/incidents", tags=["Incidents"])
+app.include_router(password_reset_router, prefix="/password", tags=["Password Management"])
+app.include_router(visa.router, prefix="/visa", tags=["Visa Information"])
 
 
 # ====================== HEALTH & ROOT ROUTES ======================
@@ -113,7 +102,7 @@ def read_root():
         "project": "JAPA Backend API",
         "version": "1.0.0",
         "message": "Welcome to the JAPA API. Documentation is available at /docs",
-        "environment": os.getenv("ENVIRONMENT", "development")
+        "environment": os.getenv("ENVIRONMENT", "development"),
     }
 
 
@@ -129,7 +118,7 @@ def health_check(db: Session = Depends(get_db)):
     return {
         "status": "healthy",
         "environment": os.getenv("ENVIRONMENT", "development"),
-        "database": db_status
+        "database": db_status,
     }
 
 
@@ -149,9 +138,9 @@ class SignupRequest(BaseModel):
 def signup(request: SignupRequest, db: Session = Depends(get_db)):
     # Check for duplicates
     existing = db.query(models.User).filter(
-        (models.User.email == request.email) |
-        (models.User.passport_number == request.passport_number) |
-        (models.User.nin == request.nin)
+        (models.User.email == request.email)
+        | (models.User.passport_number == request.passport_number)
+        | (models.User.nin == request.nin)
     ).first()
 
     if existing:
@@ -183,7 +172,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
         country=request.country,
         fcm_token=request.fcm_token,
         role="user",
-        is_active=True
+        is_active=True,
     )
 
     try:
@@ -195,35 +184,31 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
             "message": "User registered successfully",
             "user_id": new_user.id,
             "email": new_user.email,
-            "fullname": new_user.fullname
+            "fullname": new_user.fullname,
         }
     except Exception as e:
         db.rollback()
         print(f"❌ Database insertion error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user. Please try again.")
 
+
 # ====================== ONE-TIME ADMIN SEEDER ======================
 @app.post("/seed-admins")
-def seed_admins():
+def seed_admins(db: Session = Depends(get_db)):
     """Create initial admin accounts - Call this via POST in Postman"""
     try:
-        from app.auth import hash_password
-        from app.models import User
-        
-        db = next(get_db()) 
-
         created = []
 
         # 1. Super Admin - Nigeria HQ
-        if not db.query(User).filter(User.email == "admin@japa.ng").first():
-            super_admin = User(
+        if not db.query(models.User).filter(models.User.email == "admin@japa.ng").first():
+            super_admin = models.User(
                 fullname="Nigeria HQ Super Admin",
                 email="admin@japa.ng",
                 password=hash_password("JapaAdmin2025!"),
                 country="Nigeria",
                 role="super_admin",
                 is_active=True,
-                phone="+2349012345678"
+                phone="+2349012345678",
             )
             db.add(super_admin)
             created.append("Super Admin (Nigeria)")
@@ -237,15 +222,15 @@ def seed_admins():
         ]
 
         for country, email, password, fullname in embassies:
-            if not db.query(User).filter(User.email == email).first():
-                admin = User(
+            if not db.query(models.User).filter(models.User.email == email).first():
+                admin = models.User(
                     fullname=fullname,
                     email=email,
                     password=hash_password(password),
                     country=country,
                     role="embassy",
                     is_active=True,
-                    phone="+1234567890"
+                    phone="+1234567890",
                 )
                 db.add(admin)
                 created.append(f"Admin for {country}")
@@ -261,13 +246,15 @@ def seed_admins():
                 "usa": {"email": "admin@japa.us", "password": "JapaUS2025!"},
                 "uk": {"email": "admin@japa.uk", "password": "JapaUK2025!"},
                 "france": {"email": "admin@japa.fr", "password": "JapaFR2025!"},
-                "canada": {"email": "admin@japa.ca", "password": "JapaCA2025!"}
-            }
+                "canada": {"email": "admin@japa.ca", "password": "JapaCA2025!"},
+            },
         }
 
     except Exception as e:
+        db.rollback()
         return {"status": "error", "message": str(e)}
-    
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
